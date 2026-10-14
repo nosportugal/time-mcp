@@ -36,6 +36,21 @@ make size
 
 ---
 
+## Footprint & Benchmarks
+
+Measured locally on macOS Apple Silicon (`./time-mcp` over `stdio`):
+
+| Metric                                   |    Measured Value | Fun Context                                                              |
+| :--------------------------------------- | ----------------: | :----------------------------------------------------------------------- |
+| **Mr. Chang GIF vs. binary**             |  **~737x larger** | `media/ken-jeong-community.gif` (~519 KB) is 737x bigger than the server |
+| **Heap allocations**                     |       **0 bytes** | Uses only an 8 KiB stack buffer (`sub esp, 8192`)                        |
+| **Peak memory footprint**                |     **~1.13 MiB** | `1,163,648` bytes total OS process footprint on macOS                    |
+| **Sequential round-trip (`tools/call`)** | **85.6 µs / req** | **~11,677 requests/sec** (strict 1-by-1 synchronous ping-pong)           |
+| **Pipelined burst (`tools/call`)**       | **27.5 µs / req** | **~36,315 requests/sec** (10,000 live UTC calls in **275 ms**)           |
+| **CPU work per request**                 |   **~20k cycles** | ~66k retired instructions (mostly the 1-byte-at-a-time `read` syscalls)  |
+
+---
+
 ## Quick Start (Native `stdio` — macOS & Linux)
 
 ```bash
