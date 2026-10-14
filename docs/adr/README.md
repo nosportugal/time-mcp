@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADRs)
 
-This directory captures the architectural decisions made while designing **`time-mcp`** — the world's smallest compiled MCP (Model Context Protocol) server.
+This directory captures the architectural decisions made while designing **`time-mcp`** — a small compiled MCP (Model Context Protocol) server.
 
 ```
 +-----------------------------------------------------------------------+

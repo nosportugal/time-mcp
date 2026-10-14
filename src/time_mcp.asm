@@ -1,5 +1,5 @@
 ; =============================================================================
-; time-mcp: The World's Smallest Compiled MCP Server (~449 bytes)
+; time-mcp: Small Compiled MCP Server
 ; =============================================================================
 ; Target:      Linux x86 (32-bit Static ELF, IA32 / x86_64 compatible)
 ; Assembler:   nasm -f bin src/time_mcp.asm -o time-mcp && chmod +x time-mcp
