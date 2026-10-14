@@ -80,50 +80,29 @@ MCP Client receives `{"jsonrpc":"2.0","id":<ID>,"result":{...}}\n`
 
 ---
 
-## Quick Start (macOS / Linux)
-
-### Option 1: Using Docker (Works on macOS Apple Silicon / Intel & Linux)
+## Quick Start (Native `stdio` — macOS & Linux)
 
 ```bash
-# Build the binary and run the automated MCP compliance + byte-size test suite
-make docker-test
+# Build native stdio binary for your OS (and assemble the 736-byte Linux ELF32)
+make
 
-# Build the ~490-byte `FROM scratch` Docker image
-make docker-build
-
-# Run as an interactive MCP server over stdio
-docker run --rm -i --platform linux/amd64 time-mcp:latest
-```
-
-### Option 2: Native Linux Build
-
-```bash
+# Build & run the automated MCP compliance + byte-size test suite natively
 make test
 ```
 
-### Connecting to MCPJam / MCP Inspector / LibreChat
+### Connecting to MCPJam / MCP Inspector / LibreChat / Claude Desktop
 
-Configure your MCP client's `stdio` command:
+Configure your MCP client's `stdio` command to point directly to the compiled binary:
 
 ```json
 {
   "mcpServers": {
     "time": {
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-i",
-        "--platform",
-        "linux/amd64",
-        "time-mcp:latest"
-      ]
+      "command": "/absolute/path/to/time-mcp"
     }
   }
 }
 ```
-
-_(Or point `"command"` directly to `/path/to/time-mcp` when running on Linux)._
 
 ---
 

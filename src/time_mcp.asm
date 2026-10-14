@@ -42,6 +42,7 @@ _start:
 ; -----------------------------------------------------------------------------
 ; MAIN MCP STDIO LOOP (ADR-0002, ADR-0005)
 ; -----------------------------------------------------------------------------
+            add     dh, al              ; 0x2D: [0x00, 0xC6] -> 0x00 is high byte of e_phnum!
 do_read:
             ; Zero out inbuf ([esp..esp+4095]) so string scans terminate cleanly
             mov     edi, esp
@@ -50,21 +51,33 @@ do_read:
             mov     ch, 16              ; ecx = 4096 bytes
             rep     stosb
 
-            ; sys_read(0, inbuf, 4096)
+            ; Read one JSON-RPC line from stdin (up to '\n' or EOF)
             xor     ebx, ebx            ; FD 0 = stdin
-            mov     ecx, esp            ; ecx = inbuf
+            mov     ecx, esp            ; ecx = current byte in inbuf
             xor     edx, edx
-            mov     dh, 16              ; edx = 4096 (0x1000)
-            mov     al, 3               ; syscall 3 = sys_read
+            inc     edx                 ; edx = 1 byte
+.read_char:
+            push    3
+            pop     eax                 ; syscall 3 = sys_read(0, ecx, 1)
             int     0x80
             test    eax, eax
-            jle     short do_exit       ; EOF or error -> exit(0)
+            jle     short .check_eof
+            cmp     byte [ecx], 10      ; '\n'?
+            inc     ecx
+            jne     short .read_char
+            jmp     short .line_ready
+.check_eof:
+            cmp     ecx, esp            ; any bytes read before EOF?
+            je      short .do_exit      ; EOF on empty line -> exit(0)
+.line_ready:
+            mov     ebp, ecx
+            sub     ebp, esp            ; ebp = line length
+            xor     ecx, ecx            ; ensure ecx high bytes = 0
 
             ; -----------------------------------------------------------------
             ; STAGE 1: Find `"id"` in inbuf. If missing -> notification (ignore)
             ; -----------------------------------------------------------------
             mov     esi, esp            ; esi = inbuf
-            mov     ebp, eax            ; ebp = bytes read
             mov     edx, 0x22646922     ; '"id"' in little-endian: 0x22 'i' 'd' 0x22
             call    find_token
             jne     short do_read       ; Not found -> notification (e.g. initialized), ignore!
@@ -73,8 +86,7 @@ do_read:
             lea     edi, [esp + 4096]   ; edi = outbuf
             push    esi                 ; save position right after `"id"` in inbuf
             mov     esi, s_prefix
-            push    s_prefix_len
-            pop     ecx
+            mov     cl, s_prefix_len
             rep     movsb
             pop     esi                 ; restore inbuf pointer after `"id"`
 
@@ -102,8 +114,7 @@ do_read:
 
             ; Append `,"result":{` to outbuf
             mov     esi, s_result
-            push    s_result_len
-            pop     ecx
+            mov     cl, s_result_len
             rep     movsb
 
             ; -----------------------------------------------------------------
@@ -112,7 +123,7 @@ do_read:
             mov     esi, esp            ; esi = inbuf
             mov     edx, 0x74656d22     ; '"met' in little-endian ('"method"')
             call    find_token
-            jne     near .send_close    ; Fallback: close with `}\n`
+            jne     short .send_close   ; Fallback: close with `}\n`
 
             ; Advance to the opening quote of the method value: `"method" : "<HERE>`
 .find_m_colon:
@@ -132,9 +143,9 @@ do_read:
             ; --- Method: initialize ---
             mov     esi, s_init
             mov     cl, s_init_len
-            jmp     near .append_and_send
+            jmp     short .copy_and_send
 
-do_exit:
+.do_exit:
             xor     ebx, ebx
             xor     eax, eax
             inc     eax                 ; syscall 1 = sys_exit(0)
@@ -152,7 +163,23 @@ do_exit:
             ; --- Method: tools/list ---
             mov     esi, s_list
             mov     cl, s_list_len
-            jmp     short .append_and_send
+.copy_and_send:
+            rep     movsb
+.send_close:
+            mov     eax, 0x000A7D7D     ; "}}\n" in little-endian
+            stosd
+            dec     edi                 ; advance 3 bytes (not 4)
+
+            ; sys_write(1, outbuf, edi - outbuf)
+            xor     ebx, ebx
+            inc     ebx                 ; FD 1 = stdout
+            lea     ecx, [esp + 4096]   ; ecx = outbuf
+            mov     edx, edi
+            sub     edx, ecx            ; edx = length of response
+            push    4
+            pop     eax                 ; syscall 4 = sys_write
+            int     0x80
+            jmp     do_read             ; loop for next JSON-RPC line!
 
 .do_tool_call:
             ; --- Method: tools/call (Compute live UTC datetime!) ---
@@ -173,23 +200,23 @@ do_exit:
             ; First split EAX (epoch seconds) into SS, MM, HH, and Days
             push    60
             pop     ecx
-            xor     edx, edx
+            cdq
             div     ecx                 ; EAX = total minutes, EDX = SS (0..59)
             push    edx                 ; [stack 1] save SS
 
-            xor     edx, edx
+            cdq
             div     ecx                 ; EAX = total hours,   EDX = MM (0..59)
             push    edx                 ; [stack 2] save MM
 
             mov     cl, 24
-            xor     edx, edx
+            cdq
             div     ecx                 ; EAX = days since 1970-01-01, EDX = HH (0..23)
             push    edx                 ; [stack 3] save HH
 
             ; Compute Weekday: 1970-01-01 was Thursday (index 0 in "ThuFriSatSunMonTueWed")
             push    eax                 ; save days since epoch
             mov     cl, 7
-            xor     edx, edx
+            cdq
             div     ecx                 ; EDX = days % 7 (0..6)
             pop     ebx                 ; EBX = days since 1970-01-01
             push    edx                 ; [stack 4] save weekday index (0..6)
@@ -197,9 +224,9 @@ do_exit:
             ; Year loop starting from 1970
             mov     ebp, 1970
 .year_loop:
-            mov     ecx, 365
+            mov     cx, 365
             ; Check leap year (1970..2099: divisible by 4 iff low 2 bits == 0)
-            test    ebp, 3
+            test    bp, 3
             jnz     short .not_leap_yr
             inc     ecx                 ; 366 days in leap year
 .not_leap_yr:
@@ -218,9 +245,8 @@ do_exit:
             call    write_2digits       ; write "20"
             pop     eax
             mov     al, ah
-            call    write_2digits       ; write "26"
-            mov     al, '-'
-            stosb
+            mov     cl, '-'
+            call    write_2digits_sep   ; write "26-"
 
             ; Month loop (1..12) using month_days table
             mov     esi, month_days
@@ -230,7 +256,7 @@ do_exit:
             lodsb                       ; EAX = days in month (31, 28, ...)
             cmp     cl, 1               ; February (index 1)?
             jne     short .chk_month
-            test    ebp, 3              ; Is current year a leap year?
+            test    bp, 3               ; Is current year a leap year?
             jnz     short .chk_month
             inc     eax                 ; Feb has 29 days
 .chk_month:
@@ -242,28 +268,23 @@ do_exit:
 .month_done:
             ; ECX + 1 = Month (1..12), EBX + 1 = Day (1..31)
             lea     eax, [ecx + 1]
-            call    write_2digits       ; write MM
-            mov     al, '-'
-            stosb
+            mov     cl, '-'
+            call    write_2digits_sep   ; write "MM-"
 
             lea     eax, [ebx + 1]
-            call    write_2digits       ; write DD
-            mov     al, ' '
-            stosb
+            mov     cl, ' '
+            call    write_2digits_sep   ; write "DD "
 
             pop     edx                 ; [stack 4] EDX = weekday index (0..6)
             pop     eax                 ; [stack 3] EAX = HH
-            call    write_2digits       ; write HH
-            mov     al, ':'
-            stosb
+            mov     cl, ':'
+            call    write_2digits_sep   ; write "HH:"
 
             pop     eax                 ; [stack 2] EAX = MM
-            call    write_2digits       ; write MM
-            mov     al, ':'
-            stosb
+            call    write_2digits_sep   ; write "MM:" (CL is still ':')
 
             pop     eax                 ; [stack 1] EAX = SS
-            call    write_2digits       ; write SS
+            call    write_2digits       ; write "SS"
 
             mov     ax, ' ('
             stosw
@@ -278,28 +299,17 @@ do_exit:
             mov     esi, s_call_post
             xor     ecx, ecx
             mov     cl, s_call_post_len
-
-.append_and_send:
-            rep     movsb
-
-.send_close:
-            mov     ax, 0x0A7D          ; "}\n" in little-endian
-            stosw
-
-            ; sys_write(1, outbuf, edi - outbuf)
-            xor     ebx, ebx
-            inc     ebx                 ; FD 1 = stdout
-            lea     ecx, [esp + 4096]   ; ecx = outbuf
-            mov     edx, edi
-            sub     edx, ecx            ; edx = length of response
-            push    4
-            pop     eax                 ; syscall 4 = sys_write
-            int     0x80
-            jmp     do_read             ; loop for next JSON-RPC line!
+            jmp     .copy_and_send
 
 ; -----------------------------------------------------------------------------
 ; HELPER: write_2digits — Converts AL (0..99) into two ASCII digits at [EDI]
+;         write_2digits_sep — Also appends separator char in CL
 ; -----------------------------------------------------------------------------
+write_2digits_sep:
+            call    write_2digits
+            mov     [edi], cl
+            inc     edi
+            ret
 write_2digits:
             aam                         ; AH = AL / 10, AL = AL % 10
             add     ax, '00'            ; convert both nibbles to ASCII

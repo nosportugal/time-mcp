@@ -1,34 +1,53 @@
 # =============================================================================
-# Makefile for time-mcp (Linux & macOS via Docker)
+# Makefile for time-mcp (Native stdio MCP Server — Linux ELF32 & macOS arm64)
 # =============================================================================
 
-BINARY := time-mcp
-SRC    := src/time_mcp.asm
+BINARY      := time-mcp
+ELF_BINARY  := time-mcp-linux
+ASM_LINUX   := src/time_mcp.asm
+ASM_MACOS   := src/time_mcp_macos_arm64.s
+UNAME_S     := $(shell uname -s)
 
-.PHONY: all build test docker-build docker-test clean size
+.PHONY: all build build-linux build-macos test clean size
 
 all: build size
 
-# Native build (requires `nasm` installed on Linux or macOS)
-build: $(SRC)
-	nasm -f bin $(SRC) -o $(BINARY)
+# Build native stdio binary for the current OS (and always verify Linux ELF32 if nasm is installed)
+build:
+ifeq ($(UNAME_S),Darwin)
+	clang -Wl,-e,_start,-S,-x $(ASM_MACOS) -o $(BINARY)
+	@if command -v nasm >/dev/null 2>&1; then \
+		nasm -f bin $(ASM_LINUX) -o $(ELF_BINARY) && chmod +x $(ELF_BINARY); \
+	fi
+else
+	nasm -f bin $(ASM_LINUX) -o $(BINARY)
 	chmod +x $(BINARY)
+endif
+
+# Explicitly build the ultra-tiny Linux x86 32-bit Static ELF binary
+build-linux: $(ASM_LINUX)
+	nasm -f bin $(ASM_LINUX) -o $(ELF_BINARY)
+	chmod +x $(ELF_BINARY)
+	@wc -c < $(ELF_BINARY) | awk '{print "Linux ELF32 size: " $$1 " bytes"}'
+
+# Explicitly build the native macOS arm64 (Apple Silicon) Mach-O binary
+build-macos: $(ASM_MACOS)
+	clang -Wl,-e,_start,-S,-x $(ASM_MACOS) -o $(BINARY)
 
 # Print exact byte count
-size: $(BINARY)
+size: build
+ifeq ($(UNAME_S),Darwin)
+	@if [ -f $(ELF_BINARY) ]; then \
+		wc -c < $(ELF_BINARY) | awk '{print "Compiled Linux ELF32 size: " $$1 " bytes"}'; \
+	fi
+	@wc -c < $(BINARY) | awk '{print "Compiled native macOS Mach-O size: " $$1 " bytes"}'
+else
 	@wc -c < $(BINARY) | awk '{print "Compiled ELF size: " $$1 " bytes"}'
+endif
 
-# Run MCP compliance suite natively (Linux x86/x86_64)
+# Run MCP compliance suite natively over stdio
 test: build
 	python3 tests/test_mcp.py
 
-# Build & run tests inside a Linux x86 container (Works on macOS Apple Silicon / Intel & Windows!)
-docker-test:
-	docker build --platform linux/amd64 --target test -t time-mcp:test .
-
-# Build a minimal `FROM scratch` container image (~490 bytes total image size!)
-docker-build:
-	docker build --platform linux/amd64 -t time-mcp:latest .
-
 clean:
-	rm -f $(BINARY)
+	rm -f $(BINARY) $(ELF_BINARY)
