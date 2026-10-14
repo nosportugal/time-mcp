@@ -1,0 +1,5 @@
+time-mcp
+*.o
+*.bin
+__pycache__/
+.DS_Store
