@@ -26,7 +26,7 @@ These are separate executables, not a combined universal binary. The macOS build
 
 The Linux artifact contains the overlapped header, request parser, UTC calendar conversion, lookup tables, and JSON templates. Both implementations allocate 8 KiB of input/output buffers on the stack, which does not add 8 KiB to the file.
 
-The native macOS build has passed the repository's MCP tests. Linux execution remains unverified: the overlapped ELF header was rejected by an earlier emulation probe, and `file` reports an invalid ELF byte order. Its measured size is not evidence of runtime compatibility.
+Linux execution remains unverified: the overlapped ELF header was rejected by an earlier emulation probe, and `file` reports an invalid ELF byte order. Its measured size is not evidence of runtime compatibility.
 
 To rebuild and measure locally:
 
@@ -41,12 +41,9 @@ make size
 ```bash
 # Build native stdio binary (also assembles Linux ELF32 on macOS if NASM is installed)
 make
-
-# Build & run the automated MCP compliance + byte-size test suite natively
-make test
 ```
 
-Build requirements: Apple's command-line tools on macOS Apple Silicon, NASM on Linux x86/x86_64, and Python 3 for tests. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support; see the runtime caveat above.
+Build requirements: Apple's command-line tools on macOS Apple Silicon and NASM on Linux x86/x86_64. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support; see the runtime caveat above.
 
 ### Connecting to MCPJam / MCP Inspector / LibreChat / Claude Desktop
 
