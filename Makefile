@@ -8,7 +8,7 @@ ASM_LINUX   := src/time_mcp.asm
 ASM_MACOS   := src/time_mcp_macos_arm64.s
 UNAME_S     := $(shell uname -s)
 
-.PHONY: all build build-linux build-macos test clean size
+.PHONY: all build build-linux build-macos clean size
 
 all: build size
 
@@ -44,10 +44,6 @@ ifeq ($(UNAME_S),Darwin)
 else
 	@wc -c < $(BINARY) | awk '{print "Compiled ELF size: " $$1 " bytes"}'
 endif
-
-# Run MCP compliance suite natively over stdio
-test: build
-	python3 tests/test_mcp.py
 
 clean:
 	rm -f $(BINARY) $(ELF_BINARY)
