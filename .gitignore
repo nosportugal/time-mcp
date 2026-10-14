@@ -1,4 +1,5 @@
 time-mcp
+time-mcp-linux
 *.o
 *.bin
 __pycache__/

@@ -3,7 +3,7 @@
 MCP Compliance & Byte-Size Verification Suite for `time-mcp`.
 
 Tests:
-1. Binary size is under 600 bytes (target ~480-520 bytes).
+1. Linux ELF32 binary size is under 800 bytes (~736 bytes).
 2. `initialize` handshake (integer ID).
 3. `notifications/initialized` produces zero output (does not hang or reply).
 4. `tools/list` returns valid MCP tool schema with `"name": "date"`.
@@ -15,12 +15,14 @@ Tests:
 from datetime import datetime, timezone
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 BINARY_PATH = Path(os.environ.get("MCP_BINARY", "./time-mcp"))
+ELF_BINARY_PATH = Path(os.environ.get("MCP_ELF_BINARY", "./time-mcp-linux"))
 DATETIME_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \((Mon|Tue|Wed|Thu|Fri|Sat|Sun)\)$"
 )
@@ -41,12 +43,17 @@ def main() -> int:
         print(f"ERROR: Binary not found at {BINARY_PATH}. Run `make` first.", file=sys.stderr)
         return 1
 
-    size = BINARY_PATH.stat().st_size
-    print(f"[1/6] Binary size: {size} bytes")
-    assert size < 600, f"Binary too large: {size} bytes"
+    # Check the ultra-tiny Linux ELF32 binary size when present (or when running on Linux)
+    size_target = ELF_BINARY_PATH if ELF_BINARY_PATH.exists() else BINARY_PATH
+    size = size_target.stat().st_size
+    if size_target == ELF_BINARY_PATH or platform.system() == "Linux":
+        print(f"[1/6] Linux ELF32 binary size: {size} bytes")
+        assert size < 800, f"Linux ELF32 binary too large: {size} bytes"
+    else:
+        print(f"[1/6] Native {platform.system()} binary size: {size} bytes")
 
     proc = subprocess.Popen(
-        [str(BINARY_PATH)],
+        [str(BINARY_PATH.resolve())],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

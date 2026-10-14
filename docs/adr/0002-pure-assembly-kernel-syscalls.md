@@ -28,7 +28,7 @@ The binary makes only 4 raw Linux kernel syscalls via `int 0x80`:
 ## Consequences
 
 - **Pros:**
-  - **Zero dependencies:** No `libc`, no dynamic linker (`PT_INTERP`), no `/bin/sh`, no `/bin/date`, no `/proc` mount required. Runs in an completely empty `FROM scratch` Docker container containing literally only this single ~450-byte file.
+  - **Zero dependencies:** No `libc`, no dynamic linker (`PT_INTERP`), no `/bin/sh`, no `/bin/date`, no `/proc` mount required. Runs directly over `stdio` as a single self-contained binary.
   - **Sub-microsecond execution:** No child process spawning overhead; capable of handling 500,000+ MCP requests/second.
   - **True demoscene spirit:** Faithful to the 54-byte Snake game philosophy where every byte is self-contained machine code and data.
 - **Cons:**

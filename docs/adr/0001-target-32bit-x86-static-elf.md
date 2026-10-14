@@ -12,7 +12,7 @@ Unlike 16-bit MS-DOS `.COM` files (which have a 0-byte header), modern operating
 - **Windows PE (`.exe`):** Minimum valid overlapped MZ + PE header is ~97–268 bytes.
 - **macOS Mach-O (64-bit):** Minimum `mach_header_64` + `LC_UNIXTHREAD` / `LC_MAIN` is ~168+ bytes (and strict codesigning/page-zero rules on Apple Silicon).
 - **Linux ELF64 (`x86_64`):** Standard `Ehdr` (64B) + `Phdr` (56B) = 120 bytes (can be overlapped down to ~64 bytes).
-- **Linux ELF32 (`i386`):** Standard `Ehdr` (52B) + `Phdr` (32B) = 84 bytes, which can be overlapped down to **45 bytes** while executing on standard 64-bit Linux kernels via `CONFIG_IA32_EMULATION=y` (and via Docker `--platform linux/386` or `linux/amd64` on macOS/Windows).
+- **Linux ELF32 (`i386`):** Standard `Ehdr` (52B) + `Phdr` (32B) = 84 bytes, which can be overlapped down to **45 bytes** while executing on standard 64-bit Linux kernels via `CONFIG_IA32_EMULATION=y`.
 
 Additionally, 32-bit x86 instructions are denser than x86-64:
 
@@ -22,7 +22,7 @@ Additionally, 32-bit x86 instructions are denser than x86-64:
 
 ## Decision
 
-We target a **32-bit x86 Linux static ELF executable (`elf_i386`)** assembled directly from raw NASM `bin` format (`nasm -f bin`), embedding a hand-crafted **45-byte overlapped ELF header + Program Header** (with 7 bytes of executable code embedded directly inside unused `Ehdr` padding bytes).
+We target a **32-bit x86 Linux static ELF executable (`elf_i386`)** assembled directly from raw NASM `bin` format (`nasm -f bin`), embedding a hand-crafted **45-byte overlapped ELF header + Program Header** (with executable code embedded directly inside unused `Ehdr` padding bytes). For native `stdio` execution on macOS Apple Silicon (`arm64`), we also provide a zero-libc native Mach-O assembly companion (`src/time_mcp_macos_arm64.s`).
 
 ```
 Byte Offset:  0                   16                  32          45
