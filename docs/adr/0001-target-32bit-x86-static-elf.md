@@ -5,7 +5,7 @@
 
 ## Context
 
-Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/snake), our goal is to build the smallest compiled, MCP-compliant server binary in the world.
+Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/snake), our goal is to build a small compiled MCP server binary.
 
 Unlike 16-bit MS-DOS `.COM` files (which have a 0-byte header), modern operating systems require an executable header:
 

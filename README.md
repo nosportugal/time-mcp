@@ -1,81 +1,37 @@
-# `time-mcp` — The World's Smallest Compiled MCP Server (~490 Bytes)
+<p align="center">
+  <img src="media/ken-jeong-community.gif" alt="Mr. Chang holding a tiny piece of paper" width="280">
+</p>
 
-Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/snake), **`time-mcp`** is a fully compliant [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server written in pure 32-bit x86 Linux assembly with a hand-crafted 45-byte overlapped ELF header.
+# `time-mcp` — Small Assembly MCP Server (737-Byte Linux Binary)
 
-- **Zero dependencies:** No `libc`, no dynamic linker (`ld-linux.so`), no `/bin/sh`, no `/bin/date`.
-- **100% pure machine code + 4 Linux kernel syscalls:** `sys_read`, `sys_time`, `sys_write`, `sys_exit`.
-- **Universal MCP Client support:** Works with LibreChat, MCPJam, MCP Inspector, Claude Desktop, and VS Code Copilot.
+Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/snake), **`time-mcp`** is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server written in assembly, with separate Linux x86 ELF32 and native macOS Apple Silicon builds. Both communicate over `stdio`.
+
+- **Linux build:** Hand-crafted overlapped ELF header, no libraries or dynamic linker, and four kernel syscalls: `sys_read`, `sys_time`, `sys_write`, `sys_exit`.
+- **macOS build:** Native arm64 assembly using XNU syscalls; built with Apple's standard linker.
+- **Direct MCP connection:** Clients launch the executable over `stdio`; no Docker or network port required.
 - **Single tool (`date`):** Returns the live UTC timestamp formatted as `"2026-12-30 12:30:00 (Wed)"`.
 
 ---
 
-## Binary Anatomy & Byte Map
+## Measured Binary Sizes
 
-```
-+=============================================================================+
-|                     time-mcp ELF32 BINARY (~490 BYTES)                      |
-+=============================================================================+
-| Offset       | Size  | Section / Component                                  |
-+--------------+-------+------------------------------------------------------+
-| 0x000..0x02C |  45 B | Overlapped ELF32 Header + Program Header             |
-|              |       | (Includes 10 B of `_start` code inside Ehdr padding!)|
-+--------------+-------+------------------------------------------------------+
-| 0x02D..0x09F | ~115B | JSON-RPC 2.0 Parser & Method Dispatcher              |
-|              |       | - Verbatim `"id"` extraction (int, string, UUID)     |
-|              |       | - Notification filter (`notifications/initialized`)  |
-|              |       | - Safe `"method"` dispatch (`i`, `t`+`l`, `t`+`c`)   |
-|              |       | - Automatic `{}` fallback for `ping` & unknown calls |
-+--------------+-------+------------------------------------------------------+
-| 0x0A0..0x12F | ~135B | UTC Epoch-to-Calendar Math (`sys_time` -> ASCII)     |
-|              |       | - Seconds/Minutes/Hours/Days division                |
-|              |       | - 1970-2099 leap-year loop & month-length lookup     |
-|              |       | - 2-digit BCD-to-ASCII (`aam` + `add ax, '00'`)      |
-+--------------+-------+------------------------------------------------------+
-| 0x130..0x1EA | ~195B | Static Lookup Tables & Factorized JSON Templates     |
-|              |       | - `month_days` (12 B) & `"ThuFriSatSunMonTueWed"`    |
-|              |       | - Shared envelope: `{"jsonrpc":"2.0","id":`          |
-|              |       | - Payloads: `initialize`, `tools/list`, `tools/call` |
-+--------------+-------+------------------------------------------------------+
-| BSS (RAM)    |   0 B | `inbuf` (4 KB) + `outbuf` (4 KB) via `p_memsz`       |
-+=============================================================================+
-```
+Measured on 2026-10-14 using `wc -c` (file length, not allocated disk space):
 
----
+| Target             | Binary on macOS  |                         Size |
+| :----------------- | :--------------- | ---------------------------: |
+| Linux x86 ELF32    | `time-mcp-linux` |                **737 bytes** |
+| macOS arm64 Mach-O | `time-mcp`       | **16,872 bytes** (16.48 KiB) |
 
-## Request Flow Architecture
+These are separate executables, not a combined universal binary. The macOS build does not add bytes to the Linux artifact. Mach-O headers, alignment, and signing contribute to the macOS file size; sizes may vary with toolchain changes.
 
-```
-MCP Client (LibreChat / MCPJam / Inspector)
-  |
-  |  stdin (JSON-RPC line)
-  v
-+-------------------------------------------------------------------+
-| 1. sys_read(0, inbuf, 4096)                                       |
-|    EOF? ---> sys_exit(0)                                          |
-+-------------------------------------------------------------------+
-  |
-  v
-+-------------------------------------------------------------------+
-| 2. Scan for `"id"` (0x22646922)                                   |
-|    Not found? ---> Notification (`notifications/initialized`)     |
-|                    Silently ignore & loop back to (1)             |
-|    Found?     ---> Copy ID token verbatim into response envelope  |
-+-------------------------------------------------------------------+
-  |
-  v
-+-------------------------------------------------------------------+
-| 3. Scan for `"method"` & inspect method name characters           |
-|                                                                   |
-|    +-- 'i' ("initialize") ---> Emit protocolVersion & serverInfo  |
-|    +-- 't' + 'l' ("tools/list") -> Emit `"name":"date"` schema    |
-|    +-- 't' + 'c' ("tools/call") -> Call sys_time(13), format      |
-|    |                               "YYYY-MM-DD HH:MM:SS (DDD)"    |
-|    +-- default ("ping", etc.) ---> Emit empty result `{}`         |
-+-------------------------------------------------------------------+
-  |
-  |  stdout (`sys_write`)
-  v
-MCP Client receives `{"jsonrpc":"2.0","id":<ID>,"result":{...}}\n`
+The Linux artifact contains the overlapped header, request parser, UTC calendar conversion, lookup tables, and JSON templates. Both implementations allocate 8 KiB of input/output buffers on the stack, which does not add 8 KiB to the file.
+
+The native macOS build has passed the repository's MCP tests. Linux execution remains unverified: the overlapped ELF header was rejected by an earlier emulation probe, and `file` reports an invalid ELF byte order. Its measured size is not evidence of runtime compatibility.
+
+To rebuild and measure locally:
+
+```bash
+make size
 ```
 
 ---
@@ -83,12 +39,14 @@ MCP Client receives `{"jsonrpc":"2.0","id":<ID>,"result":{...}}\n`
 ## Quick Start (Native `stdio` — macOS & Linux)
 
 ```bash
-# Build native stdio binary for your OS (and assemble the 736-byte Linux ELF32)
+# Build native stdio binary (also assembles Linux ELF32 on macOS if NASM is installed)
 make
 
 # Build & run the automated MCP compliance + byte-size test suite natively
 make test
 ```
+
+Build requirements: Apple's command-line tools on macOS Apple Silicon, NASM on Linux x86/x86_64, and Python 3 for tests. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support; see the runtime caveat above.
 
 ### Connecting to MCPJam / MCP Inspector / LibreChat / Claude Desktop
 
