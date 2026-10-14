@@ -6,7 +6,7 @@
 ; Dependencies: Zero C runtime, zero libraries (raw XNU kernel svc #0x80 syscalls)
 ; Syscalls:     read (3), write (4), gettimeofday (116), exit (1) [class 0x2000000]
 ; Protocol:     Model Context Protocol (MCP) 2024-11-05 over stdio (JSON-RPC 2.0)
-; Tool:         "date" -> returns UTC "YYYY-MM-DD HH:MM:SS (DDD)"
+; Tool:         "date" -> returns UTC "YYYY-MM-DD HH:MM:SS UTC (DDD)"
 ; =============================================================================
 
 .global _start
@@ -239,6 +239,10 @@ month_done:
 
     mov     x0, x22
     bl      write_2digits
+
+    movz    w0, #0x5520
+    movk    w0, #0x4354, lsl #16
+    str     w0, [x21], #4
 
     // Write " ("
     mov     w0, #' '
