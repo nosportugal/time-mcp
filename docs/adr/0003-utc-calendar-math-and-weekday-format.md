@@ -6,9 +6,9 @@
 ## Context
 
 The MCP tool must return the current datetime formatted as:
-`YYYY-MM-DD HH:MM:SS (DDD)` — e.g., `"2026-12-30 12:30:00 (Wed)"`.
+`YYYY-MM-DD HH:MM:SS UTC (DDD)` — e.g., `"2026-12-30 12:30:00 UTC (Wed)"`.
 
-The Linux `sys_time` syscall returns seconds since `1970-01-01 00:00:00 UTC` (a Thursday). Converting raw epoch seconds into `YYYY-MM-DD HH:MM:SS (Weekday)` in x86 assembly requires:
+The Linux `sys_time` syscall returns seconds since `1970-01-01 00:00:00 UTC` (a Thursday). Converting raw epoch seconds into `YYYY-MM-DD HH:MM:SS UTC (Weekday)` in x86 assembly requires:
 
 1. Breaking time-of-day into `SS`, `MM`, `HH` and total days since `1970-01-01`.
 2. Computing the day of the week from `(days + 4) % 7` (or `(days + 3) % 7` for `Mon=0..Sun=6`).
@@ -16,7 +16,7 @@ The Linux `sys_time` syscall returns seconds since `1970-01-01 00:00:00 UTC` (a 
 
 ## Decision
 
-1. **UTC Timezone:** Use UTC directly from `sys_time` (`eax = 13`, `ebx = 0`), avoiding `/etc/localtime` TZif binary parsing.
+1. **UTC Timezone:** Use UTC directly from `sys_time` (`eax = 13`, `ebx = 0`), avoiding `/etc/localtime` TZif binary parsing. Include the literal `UTC` in the returned text so clients and LLMs can identify the timezone without external context.
 2. **1970–2099 Leap Year Rule:** Because the year 2000 was divisible by 400, **every 4th year from 1968 to 2099 is strictly a leap year**. We omit the 100-year / 400-year exception checks, saving ~15 bytes while remaining 100% accurate through `2099-12-31 23:59:59`.
 3. **3-Letter Weekday Table (`21 bytes`):** Store the 7 weekday names as a contiguous 21-byte lookup table:
    `"ThuFriSatSunMonTueWed"`

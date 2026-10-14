@@ -33,7 +33,7 @@ In the Model Context Protocol (MCP) over `stdio`, every response is a newline-de
      "jsonrpc": "2.0",
      "id": 3,
      "result": {
-       "content": [{"type": "text", "text": "2026-12-30 12:30:00 (Wed)"}]
+       "content": [{"type": "text", "text": "2026-12-30 12:30:00 UTC (Wed)"}]
      }
    }
    ```

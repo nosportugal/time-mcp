@@ -2,14 +2,14 @@
   <img src="media/ken-jeong-community.gif" alt="Mr. Chang holding a tiny piece of paper" width="280">
 </p>
 
-# `time-mcp` — Small Assembly MCP Server (737-Byte Linux Binary)
+# `time-mcp` — Small Assembly MCP Server (704-Byte Linux Binary)
 
 Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/snake), **`time-mcp`** is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server written in assembly, with separate Linux x86 ELF32 and native macOS Apple Silicon builds. Both communicate over `stdio`.
 
 - **Linux build:** Hand-crafted overlapped ELF header, no libraries or dynamic linker, and four kernel syscalls: `sys_read`, `sys_time`, `sys_write`, `sys_exit`.
 - **macOS build:** Native arm64 assembly using XNU syscalls; built with Apple's standard linker.
 - **Direct MCP connection:** Clients launch the executable over `stdio`; no Docker or network port required.
-- **Single tool (`date`):** Returns the live UTC timestamp formatted as `"2026-12-30 12:30:00 (Wed)"`.
+- **Single tool (`date`):** Returns the live UTC timestamp formatted as `"2026-12-30 12:30:00 UTC (Wed)"`.
 
 ---
 
@@ -19,10 +19,10 @@ Measured on 2026-10-14 using `wc -c` (file length, not allocated disk space):
 
 | Target             | Binary on macOS  |                         Size |
 | :----------------- | :--------------- | ---------------------------: |
-| Linux x86 ELF32    | `time-mcp-linux` |                **737 bytes** |
+| Linux x86 ELF32    | `time-mcp-linux` |                **704 bytes** |
 | macOS arm64 Mach-O | `time-mcp`       | **16,872 bytes** (16.48 KiB) |
 
-These are separate executables, not a combined universal binary. The macOS build does not add bytes to the Linux artifact. Mach-O headers, alignment, and signing contribute to the macOS file size; sizes may vary with toolchain changes.
+These are separate executables, not a combined universal binary. The macOS build does not add bytes to the Linux artifact. On macOS Apple Silicon (`arm64`), the kernel enforces a mandatory 16 KiB segment page alignment (`__TEXT` / `__LINKEDIT`) plus an embedded Mach-O ad-hoc code signature, which sets a ~16 KiB floor regardless of how small the assembly instructions are.
 
 The Linux artifact contains the overlapped header, request parser, UTC calendar conversion, lookup tables, and JSON templates. Both implementations allocate 8 KiB of input/output buffers on the stack, which does not add 8 KiB to the file.
 
