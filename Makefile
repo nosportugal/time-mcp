@@ -15,7 +15,7 @@ all: build size
 # Build native stdio binary for the current OS (and always verify Linux ELF32 if nasm is installed)
 build:
 ifeq ($(UNAME_S),Darwin)
-	clang -Wl,-e,_start,-S,-x $(ASM_MACOS) -o $(BINARY)
+	clang -Wl,-e,_start,-S,-x,-no_function_starts,-no_data_in_code_info,-no_exported_symbols,-no_fixup_chains $(ASM_MACOS) -o $(BINARY)
 	@if command -v nasm >/dev/null 2>&1; then \
 		nasm -f bin $(ASM_LINUX) -o $(ELF_BINARY) && chmod +x $(ELF_BINARY); \
 	fi
@@ -32,7 +32,7 @@ build-linux: $(ASM_LINUX)
 
 # Explicitly build the native macOS arm64 (Apple Silicon) Mach-O binary
 build-macos: $(ASM_MACOS)
-	clang -Wl,-e,_start,-S,-x $(ASM_MACOS) -o $(BINARY)
+	clang -Wl,-e,_start,-S,-x,-no_function_starts,-no_data_in_code_info,-no_exported_symbols,-no_fixup_chains $(ASM_MACOS) -o $(BINARY)
 
 # Print exact byte count
 size: build
