@@ -57,3 +57,33 @@ make
 ```
 
 Build requirements: Apple's command-line tools on macOS Apple Silicon and NASM on Linux x86/x86_64. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support.
+
+## Try It with an Inspector
+
+With the binary built and your Inspector already running, connect to it over **STDIO**:
+
+| Setting | Value |
+| :------ | :---- |
+| Transport | `STDIO` |
+| Command | Absolute path to the built executable, e.g. `/path/to/time-mcp/time-mcp` after `make` |
+| Arguments | None |
+
+If you used `make build-linux` instead, the executable is named `time-mcp-linux`. Use the native binary for your machine, not the Linux binary on macOS.
+
+### MCP Inspector
+
+1. Enter the settings above and click **Connect**.
+2. Open **Tools** and click **List Tools**.
+3. Select **date** and click **Run Tool**. It takes no arguments (`{}`).
+
+### MCPJam Inspector
+
+1. In your local MCPJam Inspector, add a server using the settings above and connect.
+2. Open the server's tools and select **date**.
+3. Run it with no arguments (`{}`).
+
+Both should return a text result containing the current UTC timestamp, for example:
+
+```text
+2026-12-30 12:30:00 UTC (Wed)
+```
