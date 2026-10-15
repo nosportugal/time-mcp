@@ -26,8 +26,6 @@ These are separate executables, not a combined universal binary. The macOS build
 
 The Linux artifact contains the overlapped header, request parser, UTC calendar conversion, lookup tables, and JSON templates. Both implementations allocate 8 KiB of input/output buffers on the stack, which does not add 8 KiB to the file. Linux places the output after the input line and a four-byte zero guard, rather than clearing the entire input buffer on every request.
 
-Both binaries passed kernel-level validation: native execution on macOS and a real x86 Linux kernel booted in full-system QEMU with IA32 emulation enabled. Checks covered responses before stdin closes, pipelined notifications, integer/string/null IDs, long-to-short requests, method dispatch, and UTC dates. Linux additionally passed leap-day and year-boundary checks and a final request without a newline. `file` may still report an invalid ELF byte order because the Linux header deliberately overlaps unused identification fields.
-
 To rebuild and measure locally:
 
 ```bash
