@@ -2,7 +2,7 @@
   <img src="media/ken-jeong-community.gif" alt="Mr. Chang holding a tiny piece of paper" width="280">
 </p>
 
-# `time-mcp` — Small Assembly MCP Server (697-Byte Linux Binary)
+# `time-mcp` — A 697-Byte Assembly MCP Server
 
 Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/snake), **`time-mcp`** is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server written in assembly, with separate Linux x86 ELF32 and native macOS Apple Silicon builds. Both communicate over `stdio`.
 
@@ -15,7 +15,7 @@ Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/sna
 
 ## Measured Binary Sizes
 
-Measured on 2026-10-15 using `wc -c` (file length, not allocated disk space):
+Measured using `wc -c` (file length, not allocated disk space):
 
 | Target             | Binary on macOS  |                         Size |
 | :----------------- | :--------------- | ---------------------------: |
@@ -59,29 +59,3 @@ make
 ```
 
 Build requirements: Apple's command-line tools on macOS Apple Silicon and NASM on Linux x86/x86_64. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support.
-
-### Connecting to MCPJam / MCP Inspector / LibreChat / Claude Desktop
-
-Configure your MCP client's `stdio` command to point directly to the compiled binary:
-
-```json
-{
-  "mcpServers": {
-    "time": {
-      "command": "/absolute/path/to/time-mcp"
-    }
-  }
-}
-```
-
----
-
-## Architecture Decision Records (ADRs)
-
-All design decisions from our architecture session are documented in [docs/adr/README.md](docs/adr/README.md):
-
-- [ADR-0001: Target 32-bit x86 Static ELF with 45-Byte Overlapped Header](docs/adr/0001-target-32bit-x86-static-elf.md)
-- [ADR-0002: Pure Assembly & Linux Kernel Syscalls Only (Zero Child Processes)](docs/adr/0002-pure-assembly-kernel-syscalls.md)
-- [ADR-0003: UTC Calendar Math (1970–2099) & 3-Letter Weekday Format](docs/adr/0003-utc-calendar-math-and-weekday-format.md)
-- [ADR-0004: Golfed MCP Tool Schema & Shared JSON-RPC Envelope](docs/adr/0004-minimal-mcp-schema-and-envelope-sharing.md)
-- [ADR-0005: Verbatim JSON-RPC `id` Echoing & Safe Method Dispatch](docs/adr/0005-verbatim-id-echo-and-safe-method-dispatch.md)
