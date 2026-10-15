@@ -32,48 +32,43 @@ phdr:                                   ; --- Phdr overlaps at offset 0x04! ---
 _start:
             ; Allocate 8KB writable scratch space on stack:
             ;   [esp]        .. [esp+4095] = inbuf  (4 KB)
-            ;   [esp+4096]   .. [esp+8191] = outbuf (4 KB)
+            ;   outbuf follows the input line within the 8KB allocation
             sub     esp, 8192           ; 0x20: [6B] 8KB writable buffers on stack
             mov     edi, esp            ; 0x26: [2B] edi = inbuf
-            jmp     short do_read       ; 0x28: [2B] jump over e_phentsize/e_phnum
+            cld                         ; 0x28: [1B] forward string operations
+            db      0xB8                ; 0x29: mov eax, imm32 consumes the next fields
             dw      0x20                ; 0x2A: e_phentsize = 32 bytes
-            db      1                   ; 0x2C: e_phnum = 1             | (end of 45B header!)
+            dw      1                   ; 0x2C: e_phnum = 1
 
 ; -----------------------------------------------------------------------------
 ; MAIN MCP STDIO LOOP (ADR-0002, ADR-0005)
 ; -----------------------------------------------------------------------------
-            add     dh, al              ; 0x2D: [0x00, 0xC6] -> 0x00 is high byte of e_phnum!
 do_read:
-            ; Zero out inbuf ([esp..esp+4095]) so string scans terminate cleanly
-            ; Note: after rep stosb (4096 bytes), EDI = esp + 4096 = outbuf!
             mov     edi, esp
-            xor     eax, eax
-            xor     ecx, ecx
-            mov     ch, 16              ; ecx = 4096 bytes
-            rep     stosb               ; zero inbuf; leaves EDI = esp + 4096 (outbuf)!
 
             ; Read one JSON-RPC line from stdin (up to '\n' or EOF)
             xor     ebx, ebx            ; FD 0 = stdin
-            mov     ecx, esp            ; ecx = current byte in inbuf
             push    1
             pop     edx                 ; edx = 1 byte
 .read_char:
+            mov     ecx, edi            ; ecx = current byte in inbuf
             push    3
             pop     eax                 ; syscall 3 = sys_read(0, ecx, 1)
             int     0x80
             test    eax, eax
             jle     short .check_eof
-            cmp     byte [ecx], 10      ; '\n'?
-            inc     ecx
+            mov     al, 10              ; '\n'?
+            scasb
             jne     short .read_char
             jmp     short .line_ready
 .check_eof:
-            cmp     ecx, esp            ; any bytes read before EOF?
+            cmp     edi, esp            ; any bytes read before EOF?
             je      short .do_exit      ; EOF on empty line -> exit(0) (ebx is already 0!)
 .line_ready:
-            mov     ebp, ecx
+            mov     ebp, edi
             sub     ebp, esp            ; ebp = line length
-            xor     ecx, ecx            ; ensure ecx high bytes = 0
+            mov     [edi], ebx           ; zero-pad token scans without clearing the buffer
+            scasd
 
             ; -----------------------------------------------------------------
             ; STAGE 1: Find `"id"` in inbuf. If missing -> notification (ignore)
@@ -83,7 +78,7 @@ do_read:
             call    find_token
             jne     short do_read       ; Not found -> notification (e.g. initialized), ignore!
 
-            ; EDI is already esp + 4096 (outbuf)! Save outbuf start on stack for sys_write.
+            ; EDI follows the input line. Save outbuf start on stack for sys_write.
             push    edi                 ; [stack: outbuf]
             push    esi                 ; save position right after `"id"` in inbuf
             mov     esi, s_prefix
@@ -332,6 +327,7 @@ find_token:
             ret
 .found:
             lodsd                       ; advance ESI by 4 bytes (preserves ZF=1)
+            xor     ecx, ecx
             ret
 
 ; -----------------------------------------------------------------------------

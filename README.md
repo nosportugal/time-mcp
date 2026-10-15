@@ -2,7 +2,7 @@
   <img src="media/ken-jeong-community.gif" alt="Mr. Chang holding a tiny piece of paper" width="280">
 </p>
 
-# `time-mcp` — Small Assembly MCP Server (704-Byte Linux Binary)
+# `time-mcp` — Small Assembly MCP Server (697-Byte Linux Binary)
 
 Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/snake), **`time-mcp`** is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server written in assembly, with separate Linux x86 ELF32 and native macOS Apple Silicon builds. Both communicate over `stdio`.
 
@@ -15,18 +15,18 @@ Inspired by the [54-byte DOS `.COM` snake game](https://github.com/donno2048/sna
 
 ## Measured Binary Sizes
 
-Measured on 2026-10-14 using `wc -c` (file length, not allocated disk space):
+Measured on 2026-10-15 using `wc -c` (file length, not allocated disk space):
 
 | Target             | Binary on macOS  |                         Size |
 | :----------------- | :--------------- | ---------------------------: |
-| Linux x86 ELF32    | `time-mcp-linux` |                **704 bytes** |
-| macOS arm64 Mach-O | `time-mcp`       | **16,872 bytes** (16.48 KiB) |
+| Linux x86 ELF32    | `time-mcp-linux` |                **697 bytes** |
+| macOS arm64 Mach-O | `time-mcp`       | **16,680 bytes** (16.29 KiB) |
 
 These are separate executables, not a combined universal binary. The macOS build does not add bytes to the Linux artifact. On macOS Apple Silicon (`arm64`), the kernel enforces a mandatory 16 KiB segment page alignment (`__TEXT` / `__LINKEDIT`) plus an embedded Mach-O ad-hoc code signature, which sets a ~16 KiB floor regardless of how small the assembly instructions are.
 
-The Linux artifact contains the overlapped header, request parser, UTC calendar conversion, lookup tables, and JSON templates. Both implementations allocate 8 KiB of input/output buffers on the stack, which does not add 8 KiB to the file.
+The Linux artifact contains the overlapped header, request parser, UTC calendar conversion, lookup tables, and JSON templates. Both implementations allocate 8 KiB of input/output buffers on the stack, which does not add 8 KiB to the file. Linux places the output after the input line and a four-byte zero guard, rather than clearing the entire input buffer on every request.
 
-Linux execution remains unverified: the overlapped ELF header was rejected by an earlier emulation probe, and `file` reports an invalid ELF byte order. Its measured size is not evidence of runtime compatibility.
+Both binaries passed kernel-level validation: native execution on macOS and a real x86 Linux kernel booted in full-system QEMU with IA32 emulation enabled. Checks covered responses before stdin closes, pipelined notifications, integer/string/null IDs, long-to-short requests, method dispatch, and UTC dates. Linux additionally passed leap-day and year-boundary checks and a final request without a newline. `file` may still report an invalid ELF byte order because the Linux header deliberately overlaps unused identification fields.
 
 To rebuild and measure locally:
 
@@ -58,7 +58,7 @@ Measured locally on macOS Apple Silicon (`./time-mcp` over `stdio`):
 make
 ```
 
-Build requirements: Apple's command-line tools on macOS Apple Silicon and NASM on Linux x86/x86_64. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support; see the runtime caveat above.
+Build requirements: Apple's command-line tools on macOS Apple Silicon and NASM on Linux x86/x86_64. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support.
 
 ### Connecting to MCPJam / MCP Inspector / LibreChat / Claude Desktop
 
