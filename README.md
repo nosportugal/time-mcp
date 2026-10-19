@@ -76,11 +76,11 @@ production executables remain pure assembly with no library dependencies.
 
 With the binary built and your Inspector already running, connect to it over **STDIO**:
 
-| Setting | Value |
-| :------ | :---- |
-| Transport | `STDIO` |
-| Command | Absolute path to the built executable, e.g. `/path/to/time-mcp/time-mcp` after `make` |
-| Arguments | None |
+| Setting   | Value                                                                                 |
+| :-------- | :------------------------------------------------------------------------------------ |
+| Transport | `STDIO`                                                                               |
+| Command   | Absolute path to the built executable, e.g. `/path/to/time-mcp/time-mcp` after `make` |
+| Arguments | None                                                                                  |
 
 If you used `make build-linux` instead, the executable is named `time-mcp-linux`. Use the native binary for your machine, not the Linux binary on macOS.
 
