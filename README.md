@@ -40,11 +40,11 @@ make
 
 Connect it from MCP Inspector or MCPJam Inspector using **STDIO**, the absolute path to the executable, and no arguments. Then list tools and run `date` with `{}`.
 
-| Setting | Value |
-| :--- | :--- |
-| Transport | `STDIO` |
-| Command | Absolute path, such as `/path/to/time-mcp/time-mcp` |
-| Arguments | None |
+| Setting   | Value                                               |
+| :-------- | :-------------------------------------------------- |
+| Transport | `STDIO`                                             |
+| Command   | Absolute path, such as `/path/to/time-mcp/time-mcp` |
+| Arguments | None                                                |
 
 On macOS Apple Silicon, `make` also builds Linux ELF32 when NASM is installed. On Linux x86/x86_64, it builds the Linux target. Linux requires a kernel with 32-bit x86 support; native macOS Intel and Linux ARM builds are not provided.
 
@@ -60,9 +60,9 @@ make test-linux
 
 ## Under the hood
 
-| Target | Implementation |
-| :--- | :--- |
+| Target    | Implementation                                                                                                                                                      |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Linux** | Hand-crafted x86 ELF32 executable with an overlapped header; no libraries or dynamic linker; four kernel syscalls: `sys_read`, `sys_time`, `sys_write`, `sys_exit`. |
-| **macOS** | Native Apple Silicon arm64 assembly using XNU syscalls and Apple's standard linker. |
+| **macOS** | Native Apple Silicon arm64 assembly using XNU syscalls and Apple's standard linker.                                                                                 |
 
 These are separate native executables, not a universal binary. File lengths are measured with `wc -c` and can be reproduced with `make size`. The macOS file includes Mach-O alignment and an ad-hoc code signature, so its total size is not a measure of the assembly code alone. The production executables have no library dependencies.
