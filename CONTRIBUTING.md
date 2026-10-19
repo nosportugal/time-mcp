@@ -28,7 +28,42 @@ The Linux binary requires a Linux environment with 32-bit x86 execution support.
 
 ## Check functionality
 
-After building, smoke-test the binary over MCP stdio using an inspector, following the setup in the [README](README.md). Confirm that it:
+The protocol tests are written in C and exercise the actual assembly executable over
+stdio. Install a C compiler, `pkg-config`, and `json-c` (test-only dependencies):
+
+```sh
+# Ubuntu / Debian (plus NASM for the server)
+sudo apt-get install build-essential nasm pkg-config libjson-c-dev
+
+# macOS Apple Silicon (with Apple's command-line tools installed)
+brew install pkgconf json-c
+```
+
+Run the suite for your platform:
+
+```sh
+make test-linux  # Builds Linux, checks its size, and runs protocol tests
+make test-macos # Builds and tests native macOS arm64
+```
+
+`make test` builds and tests the native target. `make check-size` independently
+enforces the Linux budget of at most 799 bytes, preserving the original suite's
+less-than-800-byte limit. The harness uses `json-c` for strict JSON parsing;
+neither it nor the C runtime is linked into the server.
+
+The tests cover initialization, the tool schema, integer and string IDs,
+notification silence, pipelined requests, ping and unknown-method fallback,
+the current UTC timestamp including its weekday, and EOF with or without a final
+newline. Response and overall timeouts prevent a stalled server from hanging tests.
+These are focused regression checks, not full MCP conformance certification.
+
+Pull-request CI runs the suite on Linux x86-64 and macOS arm64. Each job reports
+base and PR-merge binary sizes built from source with the same toolchain; Linux
+also enforces the byte budget. To change the budget intentionally, update
+`LINUX_BYTE_BUDGET` in the Makefile and explain the trade-off in the PR.
+
+You can also smoke-test the binary over MCP stdio using an inspector, following
+the setup in the [README](README.md). Confirm that it:
 
 1. Connects and responds to `initialize`.
 2. Lists the `date` tool with `tools/list`.
@@ -47,5 +82,6 @@ If your change affects another behavior, test that behavior too. In particular, 
 
 - [ ] The Linux target builds with `make build-linux`.
 - [ ] The before-and-after Linux binary sizes are reported.
-- [ ] MCP behavior was smoke-tested, or any testing limitation is explained.
+- [ ] Native C protocol tests pass, or any testing limitation is explained.
+- [ ] The Linux binary is below 800 bytes (`make check-size`), or a budget change is justified.
 - [ ] Related documentation is updated, if needed.

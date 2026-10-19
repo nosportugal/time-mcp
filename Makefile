@@ -7,8 +7,11 @@ ELF_BINARY  := time-mcp-linux
 ASM_LINUX   := src/time_mcp.asm
 ASM_MACOS   := src/time_mcp_macos_arm64.s
 UNAME_S     := $(shell uname -s)
+PKG_CONFIG  ?= pkg-config
+TEST_BINARY := tests/test_mcp
+LINUX_BYTE_BUDGET ?= 799
 
-.PHONY: all build build-linux build-macos clean size
+.PHONY: all build build-linux build-macos clean size test test-linux test-macos check-size
 
 all: build size
 
@@ -45,5 +48,20 @@ else
 	@wc -c < $(BINARY) | awk '{print "Compiled ELF size: " $$1 " bytes"}'
 endif
 
+$(TEST_BINARY): tests/test_mcp.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -std=c11 -Wall -Wextra -Werror $$($(PKG_CONFIG) --cflags json-c) $< -o $@ $(LDFLAGS) $$($(PKG_CONFIG) --libs json-c)
+
+test: build $(TEST_BINARY)
+	./$(TEST_BINARY) ./$(BINARY)
+
+test-linux: build-linux $(TEST_BINARY) check-size
+	./$(TEST_BINARY) ./$(ELF_BINARY)
+
+test-macos: build-macos $(TEST_BINARY)
+	./$(TEST_BINARY) ./$(BINARY)
+
+check-size: build-linux
+	@test "$$(wc -c < $(ELF_BINARY))" -le "$(LINUX_BYTE_BUDGET)" || { echo "Linux binary exceeds $(LINUX_BYTE_BUDGET) bytes"; exit 1; }
+
 clean:
-	rm -f $(BINARY) $(ELF_BINARY)
+	rm -f $(BINARY) $(ELF_BINARY) $(TEST_BINARY)

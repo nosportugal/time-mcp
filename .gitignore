@@ -1,5 +1,6 @@
 time-mcp
 time-mcp-linux
+tests/test_mcp
 *.o
 *.bin
 __pycache__/

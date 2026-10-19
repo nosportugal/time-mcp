@@ -1,0 +1,77 @@
+name: Protocol and Size
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            binary: time-mcp-linux
+            source: src/time_mcp.asm
+          - os: macos-latest
+            target: macos
+            binary: time-mcp
+            source: src/time_mcp_macos_arm64.s
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install Linux test dependencies
+        if: matrix.target == 'linux'
+        run: |
+          sudo -n apt-get update
+          sudo -n apt-get install -y nasm pkg-config libjson-c-dev
+
+      - name: Install macOS test dependencies
+        if: matrix.target == 'macos'
+        run: |
+          test "$(uname -m)" = arm64
+          brew install pkgconf json-c
+
+      - name: Build base and PR binaries
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SOURCE: ${{ matrix.source }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          git show "$BASE_SHA:$SOURCE" > "$RUNNER_TEMP/base-source.s"
+          if [ "$TARGET" = linux ]; then
+            make build-linux ASM_LINUX="$RUNNER_TEMP/base-source.s" ELF_BINARY="$RUNNER_TEMP/base-binary"
+          else
+            make build-macos ASM_MACOS="$RUNNER_TEMP/base-source.s" BINARY="$RUNNER_TEMP/base-binary"
+          fi
+          make "build-$TARGET"
+
+      - name: Report byte counts and enforce Linux budget
+        env:
+          BINARY: ${{ matrix.binary }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          before=$(wc -c < "$RUNNER_TEMP/base-binary" | tr -d ' ')
+          after=$(wc -c < "$BINARY" | tr -d ' ')
+          {
+            printf '### %s binary size\n\n' "$TARGET"
+            printf '| Base (bytes) | PR merge (bytes) | Delta (bytes) |\n'
+            printf '| ---: | ---: | ---: |\n'
+            printf '| %s | %s | %+d |\n' "$before" "$after" "$((after - before))"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$TARGET" = linux ]; then
+            make check-size
+          fi
+
+      - name: Run C protocol tests
+        env:
+          TARGET: ${{ matrix.target }}
+        run: make "test-$TARGET"

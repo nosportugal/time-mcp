@@ -58,6 +58,20 @@ make
 
 Build requirements: Apple's command-line tools on macOS Apple Silicon and NASM on Linux x86/x86_64. Native macOS Intel and Linux ARM builds are not provided. The Linux target requires a kernel with 32-bit x86 support.
 
+## Automated Tests
+
+The regression suite is written in C and tests the assembly server over stdio.
+Install the test-only compiler, `pkg-config`, and `json-c` dependencies as described
+in [CONTRIBUTING.md](CONTRIBUTING.md), then run:
+
+```sh
+make test-linux  # Linux x86/x86_64, including the less-than-800-byte budget
+make test-macos # macOS Apple Silicon
+```
+
+Pull-request CI runs both targets and reports before/after binary sizes. The
+production executables remain pure assembly with no library dependencies.
+
 ## Try It with an Inspector
 
 With the binary built and your Inspector already running, connect to it over **STDIO**:
