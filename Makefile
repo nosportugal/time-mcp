@@ -9,7 +9,7 @@ ASM_MACOS   := src/time_mcp_macos_arm64.s
 UNAME_S     := $(shell uname -s)
 PKG_CONFIG  ?= pkg-config
 TEST_BINARY := tests/test_mcp
-LINUX_BYTE_BUDGET ?= 799
+LINUX_BYTE_BUDGET ?= 699
 
 .PHONY: all build build-linux build-macos clean size test test-linux test-macos check-size
 
