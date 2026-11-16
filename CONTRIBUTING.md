@@ -47,8 +47,8 @@ make test-macos # Builds and tests native macOS arm64
 ```
 
 `make test` builds and tests the native target. `make check-size` independently
-enforces the Linux budget of at most 799 bytes, preserving the original suite's
-less-than-800-byte limit. The harness uses `json-c` for strict JSON parsing;
+enforces the Linux budget of at most 699 bytes, preserving a
+less-than-700-byte limit. The harness uses `json-c` for strict JSON parsing;
 neither it nor the C runtime is linked into the server.
 
 The tests cover initialization, the tool schema, integer and string IDs,
@@ -83,5 +83,5 @@ If your change affects another behavior, test that behavior too. In particular, 
 - [ ] The Linux target builds with `make build-linux`.
 - [ ] The before-and-after Linux binary sizes are reported.
 - [ ] Native C protocol tests pass, or any testing limitation is explained.
-- [ ] The Linux binary is below 800 bytes (`make check-size`), or a budget change is justified.
+- [ ] The Linux binary is below 700 bytes (`make check-size`), or a budget change is justified.
 - [ ] Related documentation is updated, if needed.
