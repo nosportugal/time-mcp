@@ -244,6 +244,12 @@ int main(int argc, char **argv)
     finish_server();
     puts("PASS EOF without trailing newline and clean shutdown");
 
+    test_name = "EOF notification without trailing newline";
+    start_server(argv[1]);
+    send_request("{\"method\":\"notifications/initialized\"}");
+    finish_server();
+    puts("PASS EOF notification without trailing newline and clean shutdown");
+
     test_name = "empty stdin";
     start_server(argv[1]);
     finish_server();
