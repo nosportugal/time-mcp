@@ -301,7 +301,8 @@ find_token:
             loop    .scan               ; preserves ZF=0 from inc esi (stack addr != 0)
             ret
 .found:
-            lodsd                       ; advance ESI by 4 bytes (preserves ZF=1)
+            lodsd                       ; advance ESI by 4 bytes
+            xor     ecx, ecx            ; ensure ECX = 0 (even when line length > 255!) and ZF = 1
             ret
 ; -----------------------------------------------------------------------------
 ; STATIC DATA & GOLFED MCP TEMPLATES (ADR-0003, ADR-0004)

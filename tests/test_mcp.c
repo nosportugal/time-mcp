@@ -175,7 +175,7 @@ int main(int argc, char **argv)
     start_server(argv[1]);
 
     test_name = "initialize with integer id";
-    send_request("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"c-tests\",\"version\":\"1\"}}}\n");
+    send_request("{\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"roots\":{\"listChanged\":true},\"extensions\":{\"io.modelcontextprotocol/tasks\":{},\"io.modelcontextprotocol/skills\":{}}},\"clientInfo\":{\"name\":\"inspector-cli\",\"version\":\"2.15.0\"}},\"jsonrpc\":\"2.0\",\"id\":1}\n");
     struct json_object *response = receive_response();
     struct json_object *result = envelope(response, "1");
     expect_string(result, "protocolVersion", "2024-11-05");
