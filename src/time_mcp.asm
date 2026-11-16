@@ -55,15 +55,11 @@ do_read:
             push    3
             pop     eax                 ; syscall 3 = sys_read(0, ecx, 1)
             int     0x80
-            test    eax, eax
-            jle     short .check_eof
+            dec     eax                 ; 1 byte read -> 0 (ZF=1); EOF (0) or -errno -> nonzero
+            jnz     short .check_eof
             mov     al, 10              ; '\n'?
             scasb
             jne     short .read_char
-            jmp     short .line_ready
-.check_eof:
-            cmp     edi, esp            ; any bytes read before EOF?
-            je      short .do_exit      ; EOF on empty line -> exit(0) (ebx is already 0!)
 .line_ready:
             mov     ebp, edi
             sub     ebp, esp            ; ebp = line length
@@ -88,7 +84,10 @@ do_read:
             xchg    esi, edx            ; esi = inbuf pointer, edx = s_result
 
             ; Advance past `:` and any whitespace after `"id"`
-            call    scan_colon
+.scan_id_colon:
+            lodsb
+            cmp     al, ':'
+            jne     short .scan_id_colon
 .skip_id_ws:
             lodsb
             cmp     al, ' '
@@ -121,7 +120,10 @@ do_read:
             jne     short .send_close   ; Fallback: close with `}}\n`
 
             ; Advance to the opening quote of the method value: `"method" : "<HERE>`
-            call    scan_colon
+.scan_method_colon:
+            lodsb
+            cmp     al, ':'
+            jne     short .scan_method_colon
 .find_m_quote:
             lodsb
             cmp     al, '"'
@@ -137,7 +139,10 @@ do_read:
             mov     cl, s_init_len
             jmp     short .copy_and_send
 
-.do_exit:
+.check_eof:
+            cmp     edi, esp            ; any bytes read before EOF?
+            jne     short .line_ready   ; partial line -> process it
+.do_exit:                               ; EOF on empty line -> exit(0) (ebx is already 0!)
             push    1
             pop     eax                 ; syscall 1 = sys_exit(0) (ebx is already 0)
             int     0x80
@@ -188,8 +193,7 @@ do_read:
 
             ; Format timestamp in outbuf (`YYYY-MM-DD HH:MM:SS UTC (DDD)`)
             ; First split EAX (epoch seconds) into SS, MM, HH, and Days
-            push    60
-            pop     ecx
+            mov     cl, 60              ; ECX is zero after the preceding rep movsb
             cdq
             div     ecx                 ; EAX = total minutes, EDX = SS (0..59)
             push    edx                 ; [stack 1] save SS
@@ -208,25 +212,25 @@ do_read:
             mov     cl, 7
             cdq
             div     ecx                 ; EDX = days % 7 (0..6)
-            pop     ebx                 ; EBX = days since 1970-01-01
+            pop     ebp                 ; EBP = days since 1970-01-01
             push    edx                 ; [stack 4] save weekday index (0..6)
 
             ; Year loop starting from 1969 (incremented at top of loop -> 1970..)
-            mov     bp, 1969            ; high word of EBP is already 0 (from line length < 64KB)
+            mov     bx, 1969            ; EBX is zero from sys_time(NULL)
 .year_loop:
-            inc     ebp
+            inc     ebx
             mov     cx, 365
             ; Check leap year (1970..2099: divisible by 4 iff low 2 bits == 0)
-            test    bp, 3
+            test    bl, 3
             jnz     short .not_leap_yr
             inc     ecx                 ; 366 days in leap year
 .not_leap_yr:
-            sub     ebx, ecx
+            sub     ebp, ecx
             jae     short .year_loop
-            add     ebx, ecx            ; restore remainder day of year (0..365)
+            add     ebp, ecx            ; restore remainder day of year (0..365)
 
             ; Write 4-digit Year to [edi]:
-            xchg    eax, ebp            ; EAX = Year (smaller than mov eax, ebp)
+            xchg    eax, ebx            ; EAX = Year (smaller than mov eax, ebx)
             mov     cl, 100
             div     cl                  ; AL = century (20), AH = year_in_century (26)
             mov     dl, ah              ; save year_in_century in DL (1B instead of push/pop)
@@ -248,17 +252,17 @@ do_read:
             jnz     short .chk_month
             inc     eax                 ; Feb has 29 days
 .chk_month:
-            sub     ebx, eax
+            sub     ebp, eax
             jae     short .month_loop
-            add     ebx, eax            ; restore 0-based day of month (0..30)
+            add     ebp, eax            ; restore 0-based day of month (0..30)
 
-            ; ECX = Month (1..12), EBX + 1 = Day (1..31)
+            ; ECX = Month (1..12), EBP + 1 = Day (1..31)
             xchg    eax, ecx            ; EAX = Month (1B)
             mov     cl, '-'
             call    write_2digits       ; write "MM-"
 
-            inc     ebx
-            xchg    eax, ebx            ; EAX = Day (2B total vs 3B lea)
+            inc     ebp
+            xchg    eax, ebp            ; EAX = Day (2B total vs 3B lea)
             mov     cl, ' '
             call    write_2digits       ; write "DD "
 
@@ -282,9 +286,8 @@ do_read:
 
             ; Copy 3-letter weekday from `weekdays + edx * 3`
             lea     esi, [weekdays + edx*2 + edx]
-            movsb
-            movsb
-            movsb
+            movsd                       ; copy 3 letters + 1 spill byte
+            dec     edi                 ; drop the spill byte; overwritten by the stosd below
 
             ; Write ')"}]' (0x5D7D2229) directly!
             mov     eax, ')"}]'
@@ -303,14 +306,6 @@ write_2digits:
             stosb                       ; write trailing separator to [edi]
             ret
 
-; -----------------------------------------------------------------------------
-; HELPER: scan_colon — Advances ESI past ':'
-; -----------------------------------------------------------------------------
-scan_colon:
-            lodsb
-            cmp     al, ':'
-            jne     short scan_colon
-            ret
 
 ; -----------------------------------------------------------------------------
 ; HELPER: find_token — Scans [ESI..ESI+EBP] for 4-byte token in EDX
