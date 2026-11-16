@@ -228,13 +228,30 @@ int main(int argc, char **argv)
     json_object_put(response);
     puts("PASS tools/call UTC timestamp and weekday");
 
-    test_name = "pipelined notification, ping, and unknown method";
+    test_name = "pipelined notification, ping, roots/list, value collisions, and unknown method";
     send_request("{\"method\":\"notifications/initialized\"}\n"
                  "{\"id\":0,\"method\":\"ping\"}\n"
-                 "{\"id\":-99,\"method\":\"resources/list\"}\n");
+                 "{\"id\":-99,\"method\":\"resources/list\"}\n"
+                 "{\"id\":7,\"method\":\"roots/list\"}\n"
+                 "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"params\":{\"name\":\"id\"},\"id\":8}\n");
     expect_empty("0");
     expect_empty("-99");
-    puts("PASS pipelined requests, ping, unknown method, zero and negative ids");
+    expect_empty("7");
+    expect_empty("8");
+
+    time_t hod_before = time(NULL);
+    send_request("{\"jsonrpc\":\"2.0\",\"id\":\"hod\",\"method\":\"tools/call\",\"params\":{\"name\":\"date\",\"arguments\":{}}}\n");
+    response = receive_response();
+    time_t hod_after = time(NULL);
+    result = envelope(response, "\"hod\"");
+    content = member(result, "content", json_type_array);
+    require(json_object_array_length(content) == 1, "expected one content item for id=\"hod\"");
+    item = json_object_array_get_idx(content, 0);
+    expect_string(item, "type", "text");
+    text = member(item, "text", json_type_string);
+    require(json_object_get_string_len(text) == 29 && hod_after >= hod_before, "invalid timestamp for id=\"hod\"");
+    json_object_put(response);
+    puts("PASS pipelined requests, ping, roots/list, key-value collisions, zero and negative ids");
 
     test_name = "EOF without trailing newline";
     send_request("{\"id\":\"eof\",\"method\":\"ping\"}");

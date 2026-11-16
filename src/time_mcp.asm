@@ -73,25 +73,23 @@ do_read:
             ; -----------------------------------------------------------------
             mov     esi, esp            ; esi = inbuf
             mov     edx, 0x22646922     ; '"id"' in little-endian: 0x22 'i' 'd' 0x22
-            call    find_token
+            call    find_key
 .to_do_read:
             jne     short do_read       ; Not found -> notification (e.g. initialized), ignore!
 
             ; EDI follows the input line. Save outbuf start on stack for sys_write.
             push    edi                 ; [stack: outbuf]
-            mov     edx, esi            ; save position right after `"id"` in inbuf
+            mov     edx, esi            ; save position right after `"id":` in inbuf
             mov     esi, s_prefix
             mov     cl, s_prefix_len
             rep     movsb               ; leaves ESI = s_result!
             xchg    esi, edx            ; esi = inbuf pointer, edx = s_result
 
-            ; Advance past `:` and any whitespace after `"id"`
-.skip_id_sep:
+            ; Skip any whitespace after `:`
+.skip_id_ws:
             lodsb
-            cmp     al, ':'
-            je      short .skip_id_sep
             cmp     al, ' '
-            jbe     short .skip_id_sep
+            jbe     short .skip_id_ws
 
             ; Copy ID token verbatim until `,` or `}` or control char (<= 0x20)
 .copy_id:
@@ -104,7 +102,6 @@ do_read:
             cmp     al, ' '
             ja      short .copy_id
 .id_done:
-
             ; Append `,"result":{` to outbuf (EDX is already s_result!)
             mov     esi, edx
             mov     cl, s_result_len
@@ -114,8 +111,8 @@ do_read:
             ; STAGE 2: Find `"method"` in inbuf & dispatch (ADR-0005)
             ; -----------------------------------------------------------------
             lea     esi, [esp + 4]      ; esi = inbuf ([esp] currently holds outbuf!)
-            mov     edx, 'hod"'         ; end of '"method"' (skips past key quote)
-            call    find_token
+            mov     edx, 'hod"'         ; `"method"` key (`find_key` verifies trailing `:`)
+            call    find_key
             jne     short .send_close   ; Fallback: close with `}}\n`
 
             ; Advance to the opening quote of the method value: `"method" : "<HERE>`
@@ -123,7 +120,6 @@ do_read:
             lodsb
             cmp     al, '"'
             jne     short .find_m_quote
-
             ; Now [esi] points to the 1st character of the method name!
             lodsb                       ; al = 1st char of method name
             cmp     al, 'i'             ; "initialize"
@@ -151,8 +147,11 @@ do_read:
             jne     short .to_do_read   ; ZF=0 preserved by int 0x80 -> loop via .to_do_read!
 
 .check_tools:
+            cmp     al, 't'             ; "tools/list" or "tools/call"?
+            jne     short .do_tool_call ; "ping", "roots/list", or unknown -> skip tools/list!
+
             ; [esi] was incremented by lodsb, so [esi+5] is the 7th char of "tools/X..."
-            cmp     byte [esi+5], 'l'   ; "tools/list"
+            cmp     byte [esi+5], 'l'   ; "tools/list"?
             jne     short .do_tool_call
 
             ; --- Method: tools/list ---
@@ -161,8 +160,8 @@ do_read:
             jmp     short .copy_and_send
 
 .do_tool_call:
-            ; --- Method: tools/call (or ping/unknown fallback!) ---
-            cmp     al, 't'             ; "tools/call"? (sets ZF; preserved across mov/lea/push/pop/int 0x80/cdq!)
+            ; --- Method: tools/call (or ping/roots/unknown fallback!) ---
+            cmp     al, 't'             ; "tools/call"? (ZF preserved across mov/lea/push/pop/int 0x80/cdq!)
             mov     ebp, write_2digits
             lea     esi, [byte ebp + s_call_pre - write_2digits]
             mov     cl, s_call_pre_len
@@ -171,11 +170,8 @@ do_read:
             int     0x80
             cdq
 .to_send_close:
-            jne     short .send_close   ; "ping" or unknown method -> `{"jsonrpc":"2.0","id":X,"result":{}}`
-
+            jne     short .send_close   ; "ping", "roots/list", or unknown -> `{}`
             rep     movsb               ; copy s_call_pre; leaves ESI = month_days, ECX = 0!
-
-            ; -----------------------------------------------------------------
             ; CALENDAR MATH: Epoch Seconds -> "YYYY-MM-DD HH:MM:SS UTC (DDD)" (ADR-0003)
             ; -----------------------------------------------------------------
             ; First split EAX (epoch seconds) into SS, MM, HH, and Days
@@ -275,7 +271,6 @@ do_read:
             mov     eax, ')"}]'
             stosd
             jne     short .to_send_close ; ZF=0 from dec edi -> jump via .to_send_close!
-
 ; -----------------------------------------------------------------------------
 ; HELPER: write_2digits — Converts AL (0..99) into two ASCII digits + CL at [EDI]
 ; -----------------------------------------------------------------------------
@@ -289,19 +284,29 @@ write_2digits:
             ret
 
 ; -----------------------------------------------------------------------------
-; HELPER: find_token — Scans [ESI..ESI+EBP] for 4-byte token in EDX
-; Returns ZF=1 and ESI pointing right after the 4-byte token if found.
+; HELPER: find_key — Scans [ESI..ESI+EBP] for 4-byte key tail in EDX + ':'
+; Skips optional whitespace before ':'. On match: ZF=1, ECX=0, ESI=after ':'.
 ; -----------------------------------------------------------------------------
-find_token:
+find_key:
             mov     ecx, ebp
 .scan:
             cmp     dword [esi], edx
+            jne     short .next
+            push    esi
+            lodsd                       ; skip 4-byte token
+.ws:
+            lodsb
+            cmp     al, ' '
+            jbe     short .ws
+            cmp     al, ':'             ; JSON object key must be followed by ':'!
+            pop     eax                 ; eax = token start (preserves flags!)
             je      short .found
+            mov     esi, eax
+.next:
             inc     esi
             loop    .scan               ; preserves ZF=0 from inc esi (stack addr != 0)
             ret
 .found:
-            lodsd                       ; advance ESI by 4 bytes
             xor     ecx, ecx            ; ensure ECX = 0 (even when line length > 255!) and ZF = 1
             ret
 ; -----------------------------------------------------------------------------
