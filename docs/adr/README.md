@@ -16,7 +16,7 @@ This directory captures the architectural decisions made while designing **`time
 |                  +---> [ADR-0004] Golfed MCP Schema & Shared Envelope |
 |                  |                                                    |
 |                  +---> [ADR-0005] Verbatim ID Echo & Safe Dispatch    |
-|  [ADR-0006] Size optimization evaluation (Linux -9 B)                 |
+|  [ADR-0006] Size optimization evaluation (Linux -11 B)                |
 |                                                                       |
 +-----------------------------------------------------------------------+
 ```
@@ -28,4 +28,4 @@ This directory captures the architectural decisions made while designing **`time
 | [ADR-0003](0003-utc-calendar-math-and-weekday-format.md)      | UTC Calendar Math (1970–2099) & 3-Letter Weekday           | Accepted | Saves ~15B leap-century math & ~11B weekday table   |
 | [ADR-0004](0004-minimal-mcp-schema-and-envelope-sharing.md)   | Golfed MCP Tool Schema & Shared JSON-RPC Envelope          | Accepted | Saves ~75B of redundant JSON keys and prefixes      |
 | [ADR-0005](0005-verbatim-id-echo-and-safe-method-dispatch.md) | Verbatim JSON-RPC `id` Echoing & Safe Method Dispatch      | Accepted | Universal client compatibility in ~38B of code      |
-| [ADR-0006](0006-size-optimization-evaluation.md)              | Size Optimization Evaluation (Linux 688 B, macOS 16,672 B) | Accepted | Applied -9B; protocol suite passes                  |
+| [ADR-0006](0006-size-optimization-evaluation.md)              | Size Optimization Evaluation (Linux 686 B, macOS 16,672 B) | Accepted | Applied -11B; protocol suite passes                 |

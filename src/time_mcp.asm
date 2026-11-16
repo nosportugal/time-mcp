@@ -55,8 +55,8 @@ do_read:
             push    3
             pop     eax                 ; syscall 3 = sys_read(0, ecx, 1)
             int     0x80
-            test    eax, eax
-            jle     short .check_eof
+            dec     eax                 ; 1 byte read -> 0 (ZF=1); EOF (0) or -errno -> nonzero
+            jnz     short .check_eof
             mov     al, 10              ; '\n'?
             scasb
             jne     short .read_char
@@ -287,9 +287,8 @@ do_read:
 
             ; Copy 3-letter weekday from `weekdays + edx * 3`
             lea     esi, [weekdays + edx*2 + edx]
-            movsb
-            movsb
-            movsb
+            movsd                       ; copy 3 letters + 1 spill byte
+            dec     edi                 ; drop the spill byte; overwritten by the stosd below
 
             ; Write ')"}]' (0x5D7D2229) directly!
             mov     eax, ')"}]'
