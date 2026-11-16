@@ -60,10 +60,6 @@ do_read:
             mov     al, 10              ; '\n'?
             scasb
             jne     short .read_char
-            jmp     short .line_ready
-.check_eof:
-            cmp     edi, esp            ; any bytes read before EOF?
-            je      short .do_exit      ; EOF on empty line -> exit(0) (ebx is already 0!)
 .line_ready:
             mov     ebp, edi
             sub     ebp, esp            ; ebp = line length
@@ -143,7 +139,10 @@ do_read:
             mov     cl, s_init_len
             jmp     short .copy_and_send
 
-.do_exit:
+.check_eof:
+            cmp     edi, esp            ; any bytes read before EOF?
+            jne     short .line_ready   ; partial line -> process it
+.do_exit:                               ; EOF on empty line -> exit(0) (ebx is already 0!)
             push    1
             pop     eax                 ; syscall 1 = sys_exit(0) (ebx is already 0)
             int     0x80
