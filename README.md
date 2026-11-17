@@ -4,7 +4,7 @@
 
 <p><strong>A tiny UTC clock for MCP.</strong><br />Written in assembly. Launched over <code>stdio</code>.</p>
 
-<p><strong>697 bytes</strong> &nbsp;·&nbsp; Current Linux x86 ELF32 build</p>
+<p><strong>652 bytes</strong> &nbsp;·&nbsp; Current Linux x86 ELF32 build</p>
 
 <p><em>Smaller is the goal.</em></p>
 
