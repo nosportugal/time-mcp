@@ -70,6 +70,12 @@ find_key:
 ; -----------------------------------------------------------------------------
 ; February holds 28 - 0x6D: adding CL (0x6D or 0x6E, the low byte of the final
 ; year length 365/366) yields 28 or 29 (ADR-0003).
+; Response prefix (EBP = find_key when these are loaded)
+s_prefix:   db      '{"jsonrpc":"2.0",'           ; then the request's own `"id":<value>`
+s_prefix_len equ    $ - s_prefix
+s_result:   db      ',"result":{'
+s_result_len equ    $ - s_result
+
 month_days: db      31, 28 - 0x6D, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
 
 ; -----------------------------------------------------------------------------
@@ -87,10 +93,6 @@ write_2digits:
 ; -----------------------------------------------------------------------------
 ; STATIC DATA, part 2: golfed MCP templates (ADR-0004)
 ; -----------------------------------------------------------------------------
-s_prefix:   db      '{"jsonrpc":"2.0",'           ; then the request's own `"id":<value>`
-s_prefix_len equ    $ - s_prefix
-s_result:   db      ',"result":{'
-s_result_len equ    $ - s_result
 s_call_pre: db      '"content":[{"type":"text","text":"2'          ; century "2|0" spans both strings
 s_call_pre_len equ  $ - s_call_pre
 s_seps:     db      '0-- :: UTC ('                ; separators consumed by write_2digits
@@ -159,8 +161,7 @@ do_read:
             jne     short .copy_id
 .id_done:
             mov     cl, s_result_len
-            rep     movsb               ; leaves ESI = s_call_pre
-            mov     ebx, esi
+            rep     movsb
 
             ; -----------------------------------------------------------------
             ; STAGE 2: Find `"method"` & dispatch (ADR-0005)
@@ -169,6 +170,7 @@ do_read:
             lodsd                       ; esi = inbuf ([esp] holds outbuf)
             mov     dx, 'ho'            ; edx = 'hod"' (upper half 'd"' is shared with '"id"')
             call    ebp                 ; find_key
+            lea     ebp, [byte ebp + write_2digits - find_key] ; base for the payloads (flags kept)
             jne     short .send_close   ; no method: reply `{}`
 .m_quote:
             lodsb                       ; skip whitespace up to the opening quote
@@ -178,7 +180,7 @@ do_read:
             cmp     al, 'i'             ; "initialize"
             jne     short .check_tools
 .init_or_list:                          ; ZF=1: initialize, ZF=0: tools/list
-            lea     esi, [byte ebx + s_list - s_call_pre]
+            lea     esi, [byte ebp + s_list - write_2digits]
             mov     cl, s_list_len
             jne     short .copy_and_send
             add     esi, ecx            ; s_init follows s_list
@@ -202,21 +204,19 @@ do_read:
 
 .check_tools:
             cmp     al, 't'             ; "tools/list" or "tools/call"?
+.to_send_close:                         ; also the tools/call exit (ZF=0), in short range
             jne     short .send_close   ; ping, roots/list, unknown -> `{}` (no sys_time)
             cmp     byte [esi+5], 'c'   ; 7th char of "tools/X..."
             jne     short .init_or_list ; ZF=0: tools/list
 
-.do_tool_call:                          ; ZF=1 (tools/call only)
-            ; --- ZF=1 must survive until `.to_send_close` ---
-            lea     ebp, [byte ebp + write_2digits - find_key]
-            xchg    esi, ebx            ; esi = s_call_pre; ebx -> "ools/call" in inbuf (scratch)
+.do_tool_call:                          ; reached only for tools/call
+            lea     esi, [byte ebp + s_call_pre - write_2digits]
+                                        ; ebx = just past the echoed id member (>= 4 bytes before outbuf)
             mov     cl, s_call_pre_len
             push    13
             pop     eax                 ; sys_time(ebx): also stores into the spent inbuf
             int     0x80
             cdq
-.to_send_close:
-            jne     short .send_close
             rep     movsb               ; copy s_call_pre; leaves ESI = s_seps
 
             ; -----------------------------------------------------------------
