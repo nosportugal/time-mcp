@@ -16,7 +16,7 @@
 ; -----------------------------------------------------------------------------
 
 BITS 32
-            org     0x00010000          ; == mmap_min_addr; makes 0x00010020 an address in this image
+            org     0x00010000          ; requires vm.mmap_min_addr <= 65536 (the usual default)
 
 ; -----------------------------------------------------------------------------
 ; 45-BYTE OVERLAPPED ELF32 HEADER + PROGRAM HEADER (ADR-0001)
@@ -105,20 +105,20 @@ s_init_len  equ     $ - s_init
 ; ENTRY POINT
 ; -----------------------------------------------------------------------------
 _start:
-            mov     bh, 32              ; ebx = 8192 (Linux ELF execve starts with ebx = 0)
-            sub     esp, ebx            ; 8 KB writable buffers on the stack
+            mov     bh, 0xFF            ; ebx = 65280 (Linux ELF execve starts with ebx = 0)
+            sub     esp, ebx            ; ~64 KB writable buffers on the stack
 
 ; -----------------------------------------------------------------------------
 ; MAIN MCP STDIO LOOP (ADR-0002, ADR-0005)
 ; -----------------------------------------------------------------------------
 do_read:
             xor     ebx, ebx            ; FD 0 = stdin
-            lea     edx, [ebx + 1]      ; 1 byte per read
+            mul     ebx                 ; eax = edx = 0
+            inc     edx                 ; 1 byte per read
             mov     edi, esp            ; edi = inbuf
 .read_char:
             mov     ecx, edi
-            push    3
-            pop     eax                 ; sys_read(0, ecx, 1)
+            mov     al, 3               ; sys_read(0, ecx, 1); EAX upper bits are 0 here
             int     0x80
             dec     eax                 ; 1 byte read -> ZF=1
             mov     al, 10              ; '\n' (flags preserved)
@@ -131,7 +131,7 @@ do_read:
             xchg    eax, edx            ; eax = 1 = sys_exit, ebx = 0
             int     0x80
 .line_ready:
-            stosb                       ; terminate with '\n' (also for EOF without one)
+            stosd                       ; terminate with '\n' + 3 pad bytes (also for EOF without one)
 
             ; -----------------------------------------------------------------
             ; STAGE 1: Find `"id"`. If missing -> notification (no reply)
@@ -172,9 +172,10 @@ do_read:
             call    ebp                 ; find_key
             jne     short .send_close   ; no method: reply `{}`
 .m_quote:
-            lodsb                       ; skip whitespace and the opening quote
+            lodsb                       ; skip whitespace up to the opening quote
             cmp     al, '"'
-            jbe     short .m_quote      ; al = 1st char of the method name
+            jne     short .m_quote
+            lodsb                       ; al = 1st char of the method name
             cmp     al, 'i'             ; "initialize"
             jne     short .check_tools
 .init_or_list:                          ; ZF=1: initialize, ZF=0: tools/list
@@ -210,7 +211,7 @@ do_read:
 .do_tool_call:                          ; ZF=1: tools/call, ZF=0: fallback `{}`
             ; --- flags must survive until `.to_send_close` ---
             lea     ebp, [byte ebp + write_2digits.nosep - find_key]
-            xchg    esi, ebx            ; esi = s_call_pre; ebx -> inbuf (writable)
+            xchg    esi, ebx            ; esi = s_call_pre; ebx -> inbuf (>= 4 bytes before outbuf)
             mov     cl, s_call_pre_len
             push    13
             pop     eax                 ; sys_time(ebx): also stores into the spent inbuf

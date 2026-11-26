@@ -40,4 +40,5 @@ ELF32 Phdr:       | p_type=1  p_offset=0  p_vaddr ... | p_memsz   |
   - Achieves the theoretical minimum native executable header floor on Linux (**45 bytes**, with executable instructions stuffed into unused header fields).
   - Single-command compilation (`nasm -f bin src/time_mcp.asm -o time-mcp`) with zero linker bloat.
 - **Cons:**
+  - The Linux image loads at `0x10000`, so unprivileged execution needs `vm.mmap_min_addr` <= 65536. That is a common default, not a fixed kernel value.
   - Requires a Linux kernel with 32-bit x86 support (`ia32_emulation`) or a lightweight container (`FROM scratch`) when running on macOS/Windows hosts.

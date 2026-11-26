@@ -20,7 +20,8 @@ We implement a two-stage parser in assembly (~48 bytes):
 1. **Stage 1 — Locate `"id":` and Echo Verbatim:**
    - Scan the input buffer for the 4-byte sequence `"id"` followed by `:` (skipping optional spaces).
    - If `"id"` is **not found** in the message (e.g., `notifications/initialized`), immediately loop back to read the next line (**0 bytes sent**).
-   - Copy the request's `"id"` member byte-for-byte (key, any whitespace, `:` and value) into the output buffer until `,` or `}` is reached. This supports integers (`0`, `12345`), strings (`"abc-1"`, including spaces), and `null`; whitespace around the value is echoed as-is, which is still valid JSON.
+   - **Linux (`src/time_mcp.asm`):** copy the request's `"id"` member byte-for-byte (key, any whitespace, `:` and value) into the output buffer until `,` or `}` is reached. This supports integers (`0`, `12345`), strings (`"abc-1"`, including spaces), and `null`; whitespace around the value is echoed as-is, which is still valid JSON.
+   - **macOS (`src/time_mcp_macos_arm64.s`):** emit a fixed `"id":` prefix and copy the value until `,`, `}` or whitespace, so string IDs containing spaces are not supported there.
 
 2. **Stage 2 — Locate `"method":` and Safe 2-Character Dispatch:**
    - Scan the input buffer for `"method"` followed by `:` and `"`.
