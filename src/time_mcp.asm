@@ -186,9 +186,8 @@ do_read:
 .copy_and_send:
             rep     movsb
 .send_close:
-            mov     eax, 0x000A7D7D     ; "}}\n"
+            mov     eax, 0x0A207D7D     ; "}} \n" (JSON whitespace before the newline)
             stosd
-            dec     edi                 ; advance 3 bytes (not 4)
 
             ; sys_write(1, outbuf, edi - outbuf)
             pop     ecx                 ; ecx = outbuf
