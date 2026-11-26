@@ -106,7 +106,7 @@ s_init_len  equ     $ - s_init
 ; -----------------------------------------------------------------------------
 _start:
             mov     bh, 0xFF            ; ebx = 65280 (Linux ELF execve starts with ebx = 0)
-            sub     esp, ebx            ; ~64 KB writable buffers on the stack
+            sub     esp, ebx            ; ~64 KB for input + response: lines up to ~32 KB are supported
 
 ; -----------------------------------------------------------------------------
 ; MAIN MCP STDIO LOOP (ADR-0002, ADR-0005)
@@ -204,14 +204,14 @@ do_read:
 
 .check_tools:
             cmp     al, 't'             ; "tools/list" or "tools/call"?
-            jne     short .do_tool_call ; ZF=0: ping, roots/list, unknown -> `{}`
+            jne     short .send_close   ; ping, roots/list, unknown -> `{}` (no sys_time)
             cmp     byte [esi+5], 'c'   ; 7th char of "tools/X..."
             jne     short .init_or_list ; ZF=0: tools/list
 
-.do_tool_call:                          ; ZF=1: tools/call, ZF=0: fallback `{}`
-            ; --- flags must survive until `.to_send_close` ---
+.do_tool_call:                          ; ZF=1 (tools/call only)
+            ; --- ZF=1 must survive until `.to_send_close` ---
             lea     ebp, [byte ebp + write_2digits.nosep - find_key]
-            xchg    esi, ebx            ; esi = s_call_pre; ebx -> inbuf (>= 4 bytes before outbuf)
+            xchg    esi, ebx            ; esi = s_call_pre; ebx -> "ools/call" in inbuf (scratch)
             mov     cl, s_call_pre_len
             push    13
             pop     eax                 ; sys_time(ebx): also stores into the spent inbuf
