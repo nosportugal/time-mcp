@@ -75,11 +75,10 @@ month_days: db      31, 28 - 0x6D, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
 ; -----------------------------------------------------------------------------
 ; HELPER: write_2digits -- [ESI++] separator, then AL (0..99) as two digits
 ; -----------------------------------------------------------------------------
-; .nosep skips the separator (used for the year's two halves).
 ; -----------------------------------------------------------------------------
 write_2digits:
             movsb                       ; copy separator from s_seps
-.nosep:     aam                         ; AH = AL / 10, AL = AL % 10
+            aam                         ; AH = AL / 10, AL = AL % 10
             add     ax, '00'
             xchg    al, ah              ; tens digit first
             stosw
@@ -92,9 +91,9 @@ s_prefix:   db      '{"jsonrpc":"2.0",'           ; then the request's own `"id"
 s_prefix_len equ    $ - s_prefix
 s_result:   db      ',"result":{'
 s_result_len equ    $ - s_result
-s_call_pre: db      '"content":[{"type":"text","text":"'
+s_call_pre: db      '"content":[{"type":"text","text":"2'          ; century "2|0" spans both strings
 s_call_pre_len equ  $ - s_call_pre
-s_seps:     db      '-- :: UTC ('                 ; separators consumed by write_2digits
+s_seps:     db      '0-- :: UTC ('                ; separators consumed by write_2digits
 weekdays:   db      "ThuFriSatSunMonTueWed"       ; 1970-01-01 was a Thursday
 s_list:     db      '"tools":[{"name":"date","inputSchema":{"type":"object"}}]'
 s_list_len  equ     $ - s_list
@@ -210,7 +209,7 @@ do_read:
 
 .do_tool_call:                          ; ZF=1 (tools/call only)
             ; --- ZF=1 must survive until `.to_send_close` ---
-            lea     ebp, [byte ebp + write_2digits.nosep - find_key]
+            lea     ebp, [byte ebp + write_2digits - find_key]
             xchg    esi, ebx            ; esi = s_call_pre; ebx -> "ools/call" in inbuf (scratch)
             mov     cl, s_call_pre_len
             push    13
@@ -242,11 +241,11 @@ do_read:
             push    edx                 ; [stack] weekday
 
             ; Year loop starting from 1969 (incremented at top of loop -> 1970..)
-            mov     ax, 1969            ; high word of EAX is already 0 (from days / 7)
+            mov     al, 1969 - 2000     ; AL = year - 2000 (mod 256); high word of EAX is 0
 .year_loop:
-            inc     eax
+            inc     eax                 ; (a carry into AH at 1999 -> 2000 is harmless)
             mov     cx, 365
-            test    al, 3               ; 1970..2099: leap iff year % 4 == 0
+            test    al, 3               ; 2000..2099: leap iff year % 4 == 0
             jnz     short .not_leap
             inc     ecx
 .not_leap:
@@ -254,13 +253,7 @@ do_read:
             jae     short .year_loop
             add     ebx, ecx            ; EBX = day of year (0..365), CL = 0x6D / 0x6E
 
-            mov     dl, 100
-            div     dl                  ; AL = century, AH = year in century (CL kept)
-            mov     ch, ah
-            call    ebp                 ; "20"
-            mov     al, ch
-            call    ebp                 ; "26"
-            dec     ebp                 ; ebp = write_2digits (with separator)
+            call    ebp                 ; "0" + "26": with the "2" ending s_call_pre -> "2026"
 
             cdq                         ; EDX = 0 = month counter
 .month_loop:
