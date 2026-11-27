@@ -54,7 +54,10 @@ neither it nor the C runtime is linked into the server.
 The tests cover initialization, the tool schema, integer and string IDs,
 notification silence, pipelined requests, ping and unknown-method fallback,
 the current UTC timestamp including its weekday, and EOF with or without a final
-newline. Response and overall timeouts prevent a stalled server from hanging tests.
+newline. Linux x86 tests also use `ptrace` syscall interception to check fixed
+dates across the 2038 boundary, a future leap day, and the supported range endpoints,
+without changing the host clock. The Linux test environment must permit tracing
+a child process. Response and overall timeouts prevent a stalled server from hanging tests.
 These are focused regression checks, not full MCP conformance certification.
 
 Pull-request CI runs the suite on Linux x86-64 and macOS arm64. Each job reports

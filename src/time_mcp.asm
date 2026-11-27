@@ -216,7 +216,7 @@ do_read:
             push    13
             pop     eax                 ; sys_time(ebx): also stores into the spent inbuf
             int     0x80
-            cdq
+            xor     edx, edx            ; unsigned epoch seconds: keep 2038..2099 valid
             rep     movsb               ; copy s_call_pre; leaves ESI = s_seps
 
             ; -----------------------------------------------------------------

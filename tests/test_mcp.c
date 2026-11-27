@@ -10,6 +10,13 @@
 #include <time.h>
 #include <unistd.h>
 
+#if defined(__linux__) && (defined(__i386__) || defined(__x86_64__))
+#include <stdint.h>
+#include <sys/ptrace.h>
+#include <sys/user.h>
+#define FIXED_TIME_TESTS
+#endif
+
 static volatile sig_atomic_t server = -1;
 static int input_fd = -1;
 static int output_fd = -1;
@@ -42,7 +49,7 @@ static void require(int condition, const char *message)
     }
 }
 
-static void start_server(const char *binary)
+static void start_server(const char *binary, int traced)
 {
     int to_server[2], from_server[2];
     require(pipe(to_server) == 0, "stdin pipe");
@@ -56,6 +63,14 @@ static void start_server(const char *binary)
         close(to_server[1]);
         close(from_server[0]);
         close(from_server[1]);
+#ifdef FIXED_TIME_TESTS
+        if (traced && ptrace(PTRACE_TRACEME, 0, NULL, NULL) < 0) {
+            perror("PTRACE_TRACEME");
+            _exit(126);
+        }
+#else
+        (void)traced;
+#endif
         execl(binary, binary, (char *)NULL);
         perror(binary);
         _exit(127);
@@ -163,6 +178,107 @@ static void finish_server(void)
     output_fd = -1;
 }
 
+#ifdef FIXED_TIME_TESTS
+static void inject_time(uint32_t seconds)
+{
+    int status;
+    require(waitpid(server, &status, 0) == server, "wait for traced exec");
+    require(WIFSTOPPED(status) && WSTOPSIG(status) == SIGTRAP, "traced exec stop");
+    require(ptrace(PTRACE_SETOPTIONS, server, NULL,
+                   (void *)(uintptr_t)PTRACE_O_TRACESYSGOOD) == 0, "mark syscall stops");
+    int entering = 1, injecting = 0;
+    uint32_t tloc = 0;
+    for (;;) {
+        require(ptrace(PTRACE_SYSCALL, server, NULL, NULL) == 0, "step syscall");
+        require(waitpid(server, &status, 0) == server, "wait for syscall stop");
+        require(WIFSTOPPED(status) && WSTOPSIG(status) == (SIGTRAP | 0x80),
+                "unexpected traced syscall stop");
+        struct user_regs_struct registers;
+        require(ptrace(PTRACE_GETREGS, server, NULL, &registers) == 0, "read registers");
+#if defined(__x86_64__)
+        uint32_t number = (uint32_t)registers.orig_rax;
+#else
+        uint32_t number = (uint32_t)registers.orig_eax;
+#endif
+        if (entering && number == 13) {
+            /* Suppress the real i386 sys_time, including any write through EBX. */
+#if defined(__x86_64__)
+            tloc = (uint32_t)registers.rbx;
+            registers.orig_rax = (unsigned long long)-1;
+#else
+            tloc = (uint32_t)registers.ebx;
+            registers.orig_eax = -1;
+#endif
+            require(ptrace(PTRACE_SETREGS, server, NULL, &registers) == 0, "suppress sys_time");
+            injecting = 1;
+        } else if (!entering && injecting) {
+            /* Compat registers may be sign-extended; EAX must retain all low 32 bits. */
+#if defined(__x86_64__)
+            registers.rax = (unsigned long long)(int64_t)(int32_t)seconds;
+#else
+            registers.eax = (long)(int32_t)seconds;
+#endif
+            require(ptrace(PTRACE_SETREGS, server, NULL, &registers) == 0, "inject sys_time result");
+            if (tloc != 0) {
+                /* Ptrace words follow the tracer ABI, not the ELF32 tracee ABI.
+                   Preserve neighboring bytes, including at a page boundary. */
+                uintptr_t address = (uintptr_t)tloc & ~(uintptr_t)(sizeof(long) - 1);
+                size_t offset = (uintptr_t)tloc - address;
+                size_t written = 0;
+                while (written < sizeof(seconds)) {
+                    errno = 0;
+                    long word = ptrace(PTRACE_PEEKDATA, server, (void *)address, NULL);
+                    require(word != -1 || errno == 0, "read sys_time tloc word");
+                    size_t count = sizeof(word) - offset;
+                    if (count > sizeof(seconds) - written) count = sizeof(seconds) - written;
+                    memcpy((char *)&word + offset, (const char *)&seconds + written, count);
+                    require(ptrace(PTRACE_POKEDATA, server, (void *)address,
+                                   (void *)(uintptr_t)(unsigned long)word) == 0, "inject sys_time tloc");
+                    written += count;
+                    address += sizeof(word);
+                    offset = 0;
+                }
+            }
+            /* Resume normally so the existing response timeout and EOF cleanup apply. */
+            require(ptrace(PTRACE_DETACH, server, NULL, NULL) == 0, "detach traced server");
+            return;
+        }
+        entering = !entering;
+    }
+}
+
+static void test_fixed_times(const char *binary)
+{
+    static const struct {
+        uint32_t seconds;
+        const char *expected;
+    } cases[] = {
+        {UINT32_C(946684800), "2000-01-01 00:00:00 UTC (Sat)"},
+        {UINT32_C(2147483647), "2038-01-19 03:14:07 UTC (Tue)"},
+        {UINT32_C(2147483648), "2038-01-19 03:14:08 UTC (Tue)"},
+        {UINT32_C(2147483649), "2038-01-19 03:14:09 UTC (Tue)"},
+        {UINT32_C(2214131696), "2040-02-29 12:34:56 UTC (Wed)"},
+        {UINT32_C(4102444799), "2099-12-31 23:59:59 UTC (Thu)"},
+    };
+    for (size_t index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+        test_name = cases[index].expected;
+        start_server(binary, 1);
+        send_request("{\"jsonrpc\":\"2.0\",\"id\":\"fixed-time\",\"method\":\"tools/call\",\"params\":{\"name\":\"date\",\"arguments\":{}}}\n");
+        inject_time(cases[index].seconds);
+        struct json_object *response = receive_response();
+        struct json_object *result = envelope(response, "\"fixed-time\"");
+        struct json_object *content = member(result, "content", json_type_array);
+        require(json_object_array_length(content) == 1, "expected one fixed-time content item");
+        struct json_object *item = json_object_array_get_idx(content, 0);
+        expect_string(item, "type", "text");
+        expect_string(item, "text", cases[index].expected);
+        json_object_put(response);
+        finish_server();
+        printf("PASS fixed UTC timestamp %s\n", cases[index].expected);
+    }
+}
+#endif
+
 int main(int argc, char **argv)
 {
     require(argc == 2, "usage: tests/test_mcp ./server-binary");
@@ -173,7 +289,7 @@ int main(int argc, char **argv)
     sigemptyset(&timeout_action.sa_mask);
     require(sigaction(SIGALRM, &timeout_action, NULL) == 0, "register timeout handler");
     alarm(20);
-    start_server(argv[1]);
+    start_server(argv[1], 0);
 
     test_name = "initialize with integer id";
     send_request("{\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{\"roots\":{\"listChanged\":true},\"extensions\":{\"io.modelcontextprotocol/tasks\":{},\"io.modelcontextprotocol/skills\":{}}},\"clientInfo\":{\"name\":\"inspector-cli\",\"version\":\"2.15.0\"}},\"jsonrpc\":\"2.0\",\"id\":1}\n");
@@ -289,7 +405,7 @@ int main(int argc, char **argv)
 
 #ifdef __linux__
     test_name = "Linux: one-character method at EOF without newline";
-    start_server(argv[1]);
+    start_server(argv[1], 0);
     send_request("{\"id\":1,\"method\":\"p\"}");
     close(input_fd);
     input_fd = -1;
@@ -298,8 +414,12 @@ int main(int argc, char **argv)
     puts("PASS Linux one-character method at EOF");
 #endif
 
+#ifdef FIXED_TIME_TESTS
+    test_fixed_times(argv[1]);
+#endif
+
     test_name = "empty stdin";
-    start_server(argv[1]);
+    start_server(argv[1], 0);
     finish_server();
     puts("PASS empty stdin");
     puts("All protocol tests passed.");

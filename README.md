@@ -5,15 +5,15 @@
 <p><strong>A tiny UTC clock for MCP.</strong><br />Written in assembly. Launched over <code>stdio</code>.</p>
 
 <p>
-<img alt="Linux binary: 583 bytes" src="https://img.shields.io/badge/linux_binary-583_bytes-brightgreen" />
+<img alt="Linux binary: 584 bytes" src="https://img.shields.io/badge/linux_binary-584_bytes-brightgreen" />
 <img alt="Language: assembly" src="https://img.shields.io/badge/language-assembly-6E4C13" />
 <img alt="Protocol: MCP" src="https://img.shields.io/badge/protocol-MCP-blueviolet" />
 <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache_2.0-blue" />
 </p>
 
-<p><img src="docs/qr.png" width="220" alt="QR code that contains the whole 583-byte Linux binary" /></p>
+<p><img src="docs/qr.png" width="220" alt="QR code that contains the whole 584-byte Linux binary" /></p>
 
-<p><sub>📱 This QR code <strong>is</strong> the server, all 583 bytes of it.</sub></p>
+<p><sub>📱 This QR code <strong>is</strong> the server, all 584 bytes of it.</sub></p>
 
 <p><em>Smaller is the goal.</em></p>
 
@@ -27,12 +27,12 @@ Tiny binaries, real utility: `time-mcp` is a [Model Context Protocol (MCP)](http
 
 | Program                                       |   Size | vs. time-mcp |
 | :-------------------------------------------- | -----: | -----------: |
-| 🕰️ **time-mcp** (Linux)                       |  583 B |           1× |
+| 🕰️ **time-mcp** (Linux)                       |  584 B |           1× |
 | 🚫 macOS `/usr/bin/true`, which does nothing  | 133 KB |        228× |
 | 📅 macOS `/bin/date`                          | 217 KB |        372× |
 | 🐍 Official `mcp-server-time` + dependencies  |  26 MB |    45,000× |
 
-The QR code above uses version 16, which holds up to 586 bytes, so the server fits with 3 bytes to spare.
+The QR code above uses version 16, which holds up to 586 bytes, so the server fits with 2 bytes to spare.
 
 </div>
 
@@ -53,6 +53,8 @@ The server handles MCP initialization and tool discovery, then exposes one no-ar
 ```text
 YYYY-MM-DD HH:MM:SS UTC (DDD)
 ```
+
+Supported UTC dates: **2000–2099 on Linux**, **1970–2099 on macOS**, including dates after the January 2038 signed 32-bit time boundary. Linux treats the kernel's 32-bit epoch seconds as unsigned; clearing the high half before division costs just one extra byte. Year 2100 and later are outside the supported range: Linux hardcodes the century `20`, and both targets omit Gregorian century leap-year exceptions.
 
 ## 🚀 Get running
 
