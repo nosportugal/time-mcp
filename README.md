@@ -1,10 +1,19 @@
 <div align="center">
 
-<h1>time-mcp</h1>
+<h1>🕰️ time-mcp</h1>
 
 <p><strong>A tiny UTC clock for MCP.</strong><br />Written in assembly. Launched over <code>stdio</code>.</p>
 
-<p><strong>583 bytes</strong> &nbsp;·&nbsp; Current Linux x86 ELF32 build</p>
+<p>
+<img alt="Linux binary: 583 bytes" src="https://img.shields.io/badge/linux_binary-583_bytes-brightgreen" />
+<img alt="Language: assembly" src="https://img.shields.io/badge/language-assembly-6E4C13" />
+<img alt="Protocol: MCP" src="https://img.shields.io/badge/protocol-MCP-blueviolet" />
+<img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache_2.0-blue" />
+</p>
+
+<p><img src="docs/qr.png" width="220" alt="QR code that contains the whole 583-byte Linux binary" /></p>
+
+<p><sub>📱 This QR code <strong>is</strong> the server, all 583 bytes of it.</sub></p>
 
 <p><em>Smaller is the goal.</em></p>
 
@@ -12,7 +21,22 @@
 
 Tiny binaries, real utility: `time-mcp` is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that returns the current UTC timestamp. The client launches it directly over `stdio`.
 
-## One call, one timestamp
+## 🤏 How small?
+
+<div align="center">
+
+| Program                                       |   Size | vs. time-mcp |
+| :-------------------------------------------- | -----: | -----------: |
+| 🕰️ **time-mcp** (Linux)                       |  583 B |           1× |
+| 🚫 macOS `/usr/bin/true`, which does nothing  | 133 KB |        228× |
+| 📅 macOS `/bin/date`                          | 217 KB |        372× |
+| 🐍 Official `mcp-server-time` + dependencies  |  26 MB |    45,000× |
+
+The QR code above uses version 16, which holds up to 586 bytes, so the server fits with 3 bytes to spare.
+
+</div>
+
+## ⚡ One call, one timestamp
 
 ```mermaid
 sequenceDiagram
@@ -30,7 +54,7 @@ The server handles MCP initialization and tool discovery, then exposes one no-ar
 YYYY-MM-DD HH:MM:SS UTC (DDD)
 ```
 
-## Get running
+## 🚀 Get running
 
 Build the native target for your machine:
 
@@ -48,7 +72,7 @@ Connect it from MCP Inspector or MCPJam Inspector using **STDIO**, the absolute 
 
 On macOS Apple Silicon, `make` also builds Linux ELF32 when NASM is installed. On Linux x86/x86_64, it builds the Linux target. Linux requires a kernel with 32-bit x86 support and `vm.mmap_min_addr` at or below 65536 (the common default; the Linux image loads at `0x10000`); each request line may be up to 32 KB, since the request and its response share a 64 KB buffer; native macOS Intel and Linux ARM builds are not provided.
 
-## Test it
+## 🧪 Test it
 
 The C regression harness exercises the assembly server over `stdio`. Install the test-only compiler, `pkg-config`, and `json-c` dependencies described in [CONTRIBUTING.md](CONTRIBUTING.md), then run the test for your platform:
 
@@ -58,7 +82,7 @@ make test-macos
 make test-linux
 ```
 
-## Under the hood
+## 🔧 Under the hood
 
 | Target    | Implementation                                                                                                                                                      |
 | :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
