@@ -18,6 +18,7 @@ The Linux `sys_time` syscall returns seconds since `1970-01-01 00:00:00 UTC` (a 
 
 1. **UTC Timezone:** Use UTC directly from `sys_time` (`eax = 13`, `ebx = 0`), avoiding `/etc/localtime` TZif binary parsing. Include the literal `UTC` in the returned text so clients and LLMs can identify the timezone without external context.
 2. **1970–2099 Leap Year Rule:** Because the year 2000 was divisible by 400, **every 4th year from 1968 to 2099 is strictly a leap year**. We omit the 100-year / 400-year exception checks, saving ~15 bytes while remaining 100% accurate through `2099-12-31 23:59:59`.
+   - **Linux (`src/time_mcp.asm`) prints years 2000–2099 only.** The year loop counts `year - 2000` in one byte, so on 2000–2099 it already holds the two-digit year. The century `20` is written by the templates (`"text":"2` + separator `0`), which removes the divide-by-100 and one digit print (−11 bytes). A clock set before 2000 still yields valid JSON with correct month, day, time and weekday, but wrong year digits (for example `20H6`). macOS keeps 1970–2099.
 3. **3-Letter Weekday Table (`21 bytes`):** Store the 7 weekday names as a contiguous 21-byte lookup table:
    `"ThuFriSatSunMonTueWed"`
    Since `1970-01-01` (Day 0) was a **Thursday**, starting the table at `"Thu"` means `weekday_index = days % 7` requires **zero offset addition** (`add eax, 4` is eliminated, saving 3 bytes!).

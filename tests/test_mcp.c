@@ -78,9 +78,10 @@ static void send_request(const char *request)
     }
 }
 
+static char line[65536]; /* last raw response line, kept for byte-level checks */
+
 static struct json_object *receive_response(void)
 {
-    char line[8192];
     size_t length = 0;
     for (;;) {
         struct pollfd descriptor = {output_fd, POLLIN, 0};
@@ -253,6 +254,31 @@ int main(int argc, char **argv)
     json_object_put(response);
     puts("PASS pipelined requests, ping, roots/list, key-value collisions, zero and negative ids");
 
+#ifdef __linux__
+    /* Linux-only: the x86 server echoes the request's "id" member verbatim. */
+    test_name = "Linux: spaced string id and raw member spacing";
+    send_request("{\"id\" :  \"a b\" ,\"method\":\"ping\"}\n");
+    expect_empty("\"a b\"");
+    require(strstr(line, ",\"id\" :  \"a b\" ,\"result\":{") != NULL, "raw id member spacing not echoed");
+
+    test_name = "Linux: long whitespace run before the id value";
+    static char long_request[20100];
+    int long_length = snprintf(long_request, sizeof(long_request),
+                               "{\"id\":%20000s5,\"method\":\"ping\"}\n", "");
+    require(long_length > 0 && (size_t)long_length < sizeof(long_request), "build long request");
+    send_request(long_request);
+    expect_empty("5");
+
+    test_name = "Linux: method names are not trimmed, non-string methods fall back";
+    send_request("{\"id\":11,\"method\":\"!initialize\"}\n"
+                 "{\"id\":12,\"method\":\" tools/call\"}\n"
+                 "{\"id\":13,\"method\":null}\n");
+    expect_empty("11");
+    expect_empty("12");
+    expect_empty("13");
+    puts("PASS Linux id echo, long whitespace, and method edge cases");
+#endif
+
     test_name = "EOF without trailing newline";
     send_request("{\"id\":\"eof\",\"method\":\"ping\"}");
     close(input_fd);
@@ -260,6 +286,17 @@ int main(int argc, char **argv)
     expect_empty("\"eof\"");
     finish_server();
     puts("PASS EOF without trailing newline and clean shutdown");
+
+#ifdef __linux__
+    test_name = "Linux: one-character method at EOF without newline";
+    start_server(argv[1]);
+    send_request("{\"id\":1,\"method\":\"p\"}");
+    close(input_fd);
+    input_fd = -1;
+    expect_empty("1");
+    finish_server();
+    puts("PASS Linux one-character method at EOF");
+#endif
 
     test_name = "empty stdin";
     start_server(argv[1]);

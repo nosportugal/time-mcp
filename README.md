@@ -4,7 +4,7 @@
 
 <p><strong>A tiny UTC clock for MCP.</strong><br />Written in assembly. Launched over <code>stdio</code>.</p>
 
-<p><strong>652 bytes</strong> &nbsp;·&nbsp; Current Linux x86 ELF32 build</p>
+<p><strong>583 bytes</strong> &nbsp;·&nbsp; Current Linux x86 ELF32 build</p>
 
 <p><em>Smaller is the goal.</em></p>
 
@@ -46,7 +46,7 @@ Connect it from MCP Inspector or MCPJam Inspector using **STDIO**, the absolute 
 | Command   | Absolute path, such as `/path/to/time-mcp/time-mcp` |
 | Arguments | None                                                |
 
-On macOS Apple Silicon, `make` also builds Linux ELF32 when NASM is installed. On Linux x86/x86_64, it builds the Linux target. Linux requires a kernel with 32-bit x86 support; native macOS Intel and Linux ARM builds are not provided.
+On macOS Apple Silicon, `make` also builds Linux ELF32 when NASM is installed. On Linux x86/x86_64, it builds the Linux target. Linux requires a kernel with 32-bit x86 support and `vm.mmap_min_addr` at or below 65536 (the common default; the Linux image loads at `0x10000`); each request line may be up to 32 KB, since the request and its response share a 64 KB buffer; native macOS Intel and Linux ARM builds are not provided.
 
 ## Test it
 
